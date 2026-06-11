@@ -217,40 +217,11 @@ On user decision:
 |**Status**           |🔍 *Identifying available public sources for {partyName}…*                                |
 |**Notification Rule**|No output during research. Render source list once complete.                             |
 
-- Search SEC EDGAR for the party's CIK and most recent 10-K filing. Check for an EX-21 or EX-21.1 exhibit (subsidiaries list).
-- Search Companies House if the party or its GUO appears to be a UK-registered entity.
-- Search OpenCorporates for any jurisdiction with available registry data.
-- Search the party's investor relations page and most recent annual report for subsidiary or structure disclosures.
+- Search SEC EDGAR for the party's CIK and most recent 10-K filing, and for each ultimate owner (tree root) in `{candidatePool}`, check for an EX-21 or EX-21.1 exhibit (subsidiaries list).
+- Search Companies House if the party, its GUO, or any ultimate owner in `{candidatePool}` appears to be a UK-registered entity.
+- Search OpenCorporates for the party and each ultimate owner in `{candidatePool}` for any jurisdiction with available registry data.
+- Search the party's and each ultimate owner's investor relations page and most recent annual report for subsidiary or structure disclosures.
 - Do not search sources that require authentication or are behind paywalls.
-
-Set `{researchSources}` — a list of sources found, each with:
-
-```
-{ name, url, type, confidence, filingDate? }
-```
-
-**Confidence tiers:**
-
-| Source | Confidence |
-|---|---|
-| SEC EDGAR EX-21 / EX-21.1 | High |
-| Companies House | High |
-| OpenCorporates | Medium |
-| Investor relations / annual report (structured) | Medium |
-| Investor relations / annual report (scraped) | Low |
-| Wikipedia / press releases | Low |
-
-Render:
-
-> **Sources found for {partyName}:**
->
-> | Source | Type | Confidence | Date |
-> |---|---|---|---|
-> | {name} | {type} | {confidence} | {filingDate or —} |
->
-> │ Type **`PROCEED`** to fetch all sources
-> │ Type source numbers to include only specific ones *(e.g., `1, 3`)*
-> │ Type **`SKIP`** to cancel research and return to input method selection
 
 ---
 
