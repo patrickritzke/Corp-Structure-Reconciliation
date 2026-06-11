@@ -2,26 +2,28 @@
 
 ## Scope
 
-Reconciles a client-provided corporate entity list against an Intapp party's Corporate Structure — covering the Tree, Shareholders, Beneficial Owners, Management/Board, and Close Affiliates. Identifies what already exists, what needs to be created, and what requires human judgement. Resolves ID conflicts before any bulk decisions. Checks parent chain integrity at the point of creation. Produces a full reconciliation report with a parent mismatch summary.
+Reconciles a client-provided corporate entity list against an Intapp party's Corporate Structure — covering the Tree, Shareholders, Beneficial Owners, Management/Board, and Close Affiliates. Identifies what already exists, what needs to be created, and what requires human judgement. Resolves ID conflicts before any matching. Checks parent chain integrity at the point of creation. Produces a full reconciliation report with a parent mismatch summary.
 
 ## Goals
+
 - Minimise duplicate party creation by matching at a high name threshold before offering to create
 - Use provided IDs as a safeguard and conflict alarm, not as a primary matching signal
 - Ensure no entity is created without its direct parent being resolved first
 - Produce a complete audit trail — every provided entity accounted for in the final report
 
----
+-----
 
 ## Test Fixtures
 
 - **Party 1767** — Gazprom Pipeline, LLC. Tree rooted at Innospec Inc. (042006515). Use Scenario 1 (flat names) for a clean baseline run.
 - **Party 1764** — GAZPROM TEPLOENERGO MO, OOO. Two trees + Board + UBOs loaded. Use Scenario 5 (hierarchy with IDs) for the most complex run.
 
----
+-----
 
 ## Playbook Variables
 
 ### Hardcoded
+
 - `{threshold}` = `0.95` — minimum name similarity score for auto-accept. Applies to both entity name and parent name comparisons. Configurable per run.
 - `{matchSkill}` = `corp-tree-match` — scoring skill
 - `{interpretSkill}` = `corp-tree-interpret` — classification skill
@@ -29,72 +31,81 @@ Reconciles a client-provided corporate entity list against an Intapp party's Cor
 ### Per-Run Variables
 
 #### Party
+
 - `{partyId}` — Intapp system ID of the anchor party
 - `{partyName}` — display name of the anchor party
 - `{provider}` — `externalDataProvider` value from the party response
 - `{sourcesLoaded}` — list of non-null Corporate Structure sections found in the response
 
 #### Entity Lists
+
 - `{candidatePool}` — flat array of all existing nodes extracted in Step 1: `{ id, name, parentId, source }`
 - `{providedList}` — parsed array of user-supplied entities: `{ name, id?, parentName?, parentId? }`
-- `{signalTable}` — output of `corp-tree-match`: one signal row per provided entity
+- `{idConflicts}` — pre-scoring: entities where provided ID exists in tree AND existing name ≠ provided name
+- `{signalTable}` — output of `corp-tree-match`: one signal row per provided entity (after ID conflicts resolved)
 - `{bucketTable}` — output of `corp-tree-interpret`: signal rows + Bucket + Interpretation columns
 - `{resolvedList}` — `{providedList}` enriched with resolved IDs after Phase 1 completes
 
 #### Session State
-- `{idConflicts}` — rows from `{bucketTable}` where Top ID Match = Yes and name score < threshold, or parent IDs disagree
-- `{matches}` — rows with Bucket = Match and no ID conflict
+
+- `{matches}` — rows with Bucket = Match
 - `{noMatches}` — rows with Bucket = No Match
-- `{judgements}` — rows with Bucket = Judgement and not in `{idConflicts}`
+- `{judgements}` — rows with Bucket = Judgement
 - `{outcomes}` — map of `providedName → { resolvedId, outcome, parentMatch, notes }` built throughout Phase 1
 
----
+-----
 
 ## Overall Behavior Rules
+
 - **Silent computation:** All tool calls, signal scoring, candidate pool construction, and bucket classification produce zero user-facing output. Only defined display outputs and prompts are rendered.
 - **No narration:** Never describe what you are about to do, what a tool call returned, or what computation just ran.
 - **Exit checks are silent:** Exit checks are internal invariant assertions. If one fails, output only: `⚠️ Exit check failed: <reason>` and halt.
 - **GO TO is unconditional:** When a step says GO TO Step N, proceed immediately — no confirmation, no summary.
 - **Step labels are internal:** Never render step numbers or phase labels in user-facing output.
 
----
+-----
 
 ## Execution Rules (Non-Negotiable)
+
 - NEVER narrate tool calls, reasoning, data processing, or intermediate results
 - NEVER explain what you are about to do or just did
 - NEVER output any text between receiving tool results and the next defined step output
 - The ONLY permitted outputs are: (a) Progress Header + Status, (b) defined display output, (c) defined user prompt
 - NEVER render step or substep labels in output
 
----
+-----
 
 ## Progress Display
 
 ### Phases
+
 ```
-Fetch & Parse  ›  Match & Score  ›  ID Conflicts  ›  Reconcile  ›  Hierarchy Check  ›  Report
+Fetch & Parse  ›  ID Conflicts  ›  Match & Score  ›  Reconcile  ›  Hierarchy Check  ›  Report
 ```
 
 ### State Icons
-| Position | Icon | Bold? |
-|---|---|---|
-| Completed phases | ☑ | Yes |
-| Current phase | ▣ | Yes |
-| Upcoming phases | ☐ | No |
+
+|Position        |Icon|Bold?|
+|----------------|----|-----|
+|Completed phases|☑   |Yes  |
+|Current phase   |▣   |Yes  |
+|Upcoming phases |☐   |No   |
 
 ### Phase Emojis
-| Phase | Emoji |
-|---|---|
-| Fetch & Parse | 🔍 |
-| Match & Score | ⚙️ |
-| ID Conflicts | 🔑 |
-| Reconcile | ✏️ |
-| Hierarchy Check | 🌲 |
-| Report | 📋 |
+
+|Phase          |Emoji|
+|---------------|-----|
+|Fetch & Parse  |🔍    |
+|ID Conflicts   |🔑    |
+|Match & Score  |⚙️    |
+|Reconcile      |✏️    |
+|Hierarchy Check|🌲    |
+|Report         |📋    |
 
 ### Rendering Contract
 
 With content below:
+
 ```
 {Progress Header}
 
@@ -106,44 +117,48 @@ With content below:
 ```
 
 Pure processing (no content):
+
 ```
 {Progress Header}
 
 {emoji} *{Status text}*
 ```
 
-### Example — Pure Processing (Step 1)
-```
-☑ **Fetch & Parse**  ›  ▣ **Match & Score**  ›  ☐ ID Conflicts  ›  ☐ Reconcile  ›  ☐ Hierarchy Check  ›  ☐ Report
+### Example — Pure Processing (Step 4)
 
-⚙️ *Scoring 16 entities against 32 candidates…*
+```
+☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ▣ **Match & Score**  ›  ☐ Reconcile  ›  ☐ Hierarchy Check  ›  ☐ Report
+
+⚙️ *Comparing provided information against corporate tree…*
 ```
 
 ### Example — Display + Prompt (Step 5)
-```
-☑ **Fetch & Parse**  ›  ☑ **Match & Score**  ›  ☑ **ID Conflicts**  ›  ▣ **Reconcile**  ›  ☐ Hierarchy Check  ›  ☐ Report
 
-✏️ *13 clean matches found — confirm to accept*
+```
+☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ▣ **Reconcile**  ›  ☐ Hierarchy Check  ›  ☐ Report
+
+✏️ *We found 14 strong matches to existing names in the corporate tree.*
 
 ---
 
-| Provided Entity | Matched Entity (ID) | ...
+|   | Provided Name | Matched Existing Name (ID) | Match Score |
+...
 ```
 
----
+-----
 
 ## Phase 1 — Reconcile
 
----
+-----
 
 ### Step 1: Fetch Party and Build Candidate Pool
 
-| Field | Value |
-|---|---|
-| **Type** | Processing |
-| **Progress Header** | `▣ **Fetch & Parse**  ›  ☐ Match & Score  ›  ☐ ID Conflicts  ›  ☐ Reconcile  ›  ☐ Hierarchy Check  ›  ☐ Report` |
-| **Status** | 🔍 *Fetching party {partyId}…* |
-| **Notification Rule** | No output except Progress Header + Status |
+|Field                |Value                                                                                                          |
+|---------------------|---------------------------------------------------------------------------------------------------------------|
+|**Type**             |Processing                                                                                                     |
+|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Hierarchy Check  ›  ☐ Report`|
+|**Status**           |🔍 *Fetching party {partyId}…*                                                                                  |
+|**Notification Rule**|No output except Progress Header + Status                                                                      |
 
 - Call `intappCommon:get_party` with `party_id` = `{partyId}`
 - Set `{partyName}`, `{provider}`, `{sourcesLoaded}` from response
@@ -152,217 +167,232 @@ Pure processing (no content):
 
 **Exit check:** `{candidatePool}` contains at least one node.
 
----
+-----
 
 ### Step 2: Parse Provided Entity List
 
-| Field | Value |
-|---|---|
-| **Type** | Processing |
-| **Progress Header** | `▣ **Fetch & Parse**  ›  ☐ Match & Score  ›  ☐ ID Conflicts  ›  ☐ Reconcile  ›  ☐ Hierarchy Check  ›  ☐ Report` |
-| **Status** | 🔍 *Parsing provided entity list…* |
-| **Notification Rule** | No output except Progress Header + Status |
+|Field                |Value                                                                                                          |
+|---------------------|---------------------------------------------------------------------------------------------------------------|
+|**Type**             |Processing                                                                                                     |
+|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Hierarchy Check  ›  ☐ Report`|
+|**Status**           |🔍 *Parsing provided entity list…*                                                                              |
+|**Notification Rule**|No output except Progress Header + Status                                                                      |
 
 Detect input format and extract into `{providedList}`. See Appendix B for format detection rules.
 
 **Exit check:** `{providedList}` contains at least one entity with a non-empty name.
 
----
+-----
 
-### Step 3: Run Matching and Classification
+### Step 3: Resolve ID Conflicts (bulk)
 
-| Field | Value |
-|---|---|
-| **Type** | Processing |
-| **Progress Header** | `☑ **Fetch & Parse**  ›  ▣ **Match & Score**  ›  ☐ ID Conflicts  ›  ☐ Reconcile  ›  ☐ Hierarchy Check  ›  ☐ Report` |
-| **Status** | ⚙️ *Scoring {n} entities against {m} candidates…* |
-| **Notification Rule** | No output except Progress Header + Status |
+|Field                |Value                                                                                                              |
+|---------------------|-------------------------------------------------------------------------------------------------------------------|
+|**Type**             |Display → User Prompt                                                                                              |
+|**Progress Header**  |`☑ **Fetch & Parse**  ›  ▣ **ID Conflicts**  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Hierarchy Check  ›  ☐ Report`|
+|**Status**           |🔑 *We found {n} ID(s) in your list that exist in the tree with different names.*                                   |
+|**Notification Rule**|Render conflict table then prompt                                                                                  |
 
-- Run `corp-tree-match` with `{candidatePool}` and `{providedList}` → set `{signalTable}`
-- Run `corp-tree-interpret --threshold {threshold}` on `{signalTable}` → set `{bucketTable}`
-- Partition `{bucketTable}` into `{idConflicts}`, `{matches}`, `{noMatches}`, `{judgements}` (see Appendix C)
+This step is a pure ID-existence check. No name scoring runs here.
 
-**Exit check:** Every row in `{providedList}` has exactly one corresponding row in `{bucketTable}`.
+**Build `{idConflicts}`:** for every entity in `{providedList}` that has a provided ID:
 
----
+- Look up the ID in `{candidatePool}`
+- If found AND existing name == provided name (case-insensitive exact) → silently mark as Match in `{outcomes}`; do not surface
+- If found AND names differ → add to `{idConflicts}`
+- If not found → leave for scoring step (no ID assigned)
 
-### Step 4: Resolve ID Conflicts (one by one)
+If `{idConflicts}` is empty → **GO TO** Step 4.
 
-| Field | Value |
-|---|---|
-| **Type** | Analysis and User Prompt |
-| **Progress Header** | `☑ **Fetch & Parse**  ›  ☑ **Match & Score**  ›  ▣ **ID Conflicts**  ›  ☐ Reconcile  ›  ☐ Hierarchy Check  ›  ☐ Report` |
-| **Status** | 🔑 *{n} ID conflict(s) to resolve* |
-| **Notification Rule** | Render opening line, then one prompt card per conflict |
+Render the conflict table:
 
-If `{idConflicts}` is empty → **GO TO** Step 5.
+| |ID          |Existing Name |New Name      |
+|-|------------|--------------|--------------|
+|A|{providedId}|{existingName}|{providedName}|
+|B|…           |…             |…             |
 
-Open with:
-> "There are {n} entity IDs you provided that exist in the corporate tree already with conflicting names. Let's resolve these."
+Then prompt:
 
-For each conflict in `{idConflicts}`, render:
-```
-ID:             {providedId}
-Existing Name:  {topNameMatch}
-Provided Name:  {providedName}
+> "How would you like to resolve these? Choose one option for all rows, or specify per row."
+>
+> **A) Keep Existing Names** — accept tree's current names; resolve provided entities to existing tree nodes
+> **B) Change Existing Names to New Names** — rename tree nodes to match provided names
+> **C) Add New Names as New Entities** — make the provided IDs unique so the new names are added as separate entities
 
-Would you like to:
-A) Keep the existing name
-B) Use your provided name (edit existing)
-C) Create as new entity (we will make the ID unique)
-```
+On user decision:
 
-On each decision:
-- **A** → record `{providedName}` as Matched to `{topNameMatch}`, existing name preserved. Remove from `{idConflicts}`, add to `{matches}`.
-- **B** → flag existing node for rename, record as Matched. If rename is actioned: re-call `intappCommon:get_party`, re-run Steps 1–3 for all remaining unresolved entities.
-- **C** → drop the provided ID, remove from `{idConflicts}`, add to `{noMatches}`.
+- **A (all)** → for every conflict, resolve to existing tree node, record as Matched in `{outcomes}` with note "existing name preserved"
+- **B (all)** → for every conflict, flag tree node for rename, record as Matched in `{outcomes}` with note "renamed: {existingName} → {providedName}". If rename is actioned: re-call `intappCommon:get_party`, rebuild `{candidatePool}`
+- **C (all)** → for every conflict, drop the provided ID from `{providedList}` (entity proceeds to scoring as a name-only entry). No outcome recorded yet — scoring will determine bucket.
+- **Per-row decisions (e.g., "1A, 2C, 3B")** → apply mixed resolutions
 
 **Exit check:** `{idConflicts}` is empty before proceeding.
 
----
+-----
+
+### Step 4: Run Matching and Classification
+
+|Field                |Value                                                                                                                  |
+|---------------------|-----------------------------------------------------------------------------------------------------------------------|
+|**Type**             |Processing                                                                                                             |
+|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ▣ **Match & Score**  ›  ☐ Reconcile  ›  ☐ Hierarchy Check  ›  ☐ Report`|
+|**Status**           |⚙️ *Comparing provided information against corporate tree…*                                                             |
+|**Notification Rule**|No output except Progress Header + Status                                                                              |
+
+- Run `corp-tree-match` with `{candidatePool}` and `{providedList}` (excluding entities already resolved in Step 3) → set `{signalTable}`
+- Run `corp-tree-interpret --threshold {threshold}` on `{signalTable}` → set `{bucketTable}`
+- Partition `{bucketTable}` into `{matches}`, `{noMatches}`, `{judgements}` (see Appendix C)
+
+**Exit check:** Every unresolved row in `{providedList}` has exactly one corresponding row in `{bucketTable}`.
+
+-----
 
 ### Step 5: Bulk Accept Clear Matches
 
-| Field | Value |
-|---|---|
-| **Type** | Display → User Prompt |
-| **Progress Header** | `☑ **Fetch & Parse**  ›  ☑ **Match & Score**  ›  ☑ **ID Conflicts**  ›  ▣ **Reconcile**  ›  ☐ Hierarchy Check  ›  ☐ Report` |
-| **Status** | ✏️ *{n} clean match(es) found — confirm to accept* |
-| **Notification Rule** | Render match table then prompt |
+|Field                |Value                                                                                                                      |
+|---------------------|---------------------------------------------------------------------------------------------------------------------------|
+|**Type**             |Display → User Prompt                                                                                                      |
+|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ▣ **Reconcile**  ›  ☐ Hierarchy Check  ›  ☐ Report`|
+|**Status**           |✏️ *We found {n} strong matches to existing names in the corporate tree.*                                                   |
+|**Notification Rule**|Render match table then prompt                                                                                             |
 
 If `{matches}` is empty → **GO TO** Step 6.
 
 Render:
 
-| Provided Entity | Matched Entity (ID) | ID Match | Name Match | Provided Parent | Matched Parent (ID) | Parent ID Match | Parent Name Match | Source |
-|---|---|---|---|---|---|---|---|---|
+| |Provided Name |Matched Existing Name (ID) |Match Score|
+|-|--------------|---------------------------|-----------|
+|A|{providedName}|{matchedName} ({matchedId})|{score}%   |
+|B|…             |…                          |…          |
 
 Then prompt:
-> "Accept all {n} matches? Type **accept** to confirm, or list any row numbers you'd like to review individually."
+
+> "Type **accept** to confirm matches (we won't add these names to the tree) or list any rows you'd like to review individually."
 
 - **accept** → record all as Matched in `{outcomes}`. **GO TO** Step 6.
-- **Row numbers listed** → move those rows to `{judgements}`, record remainder as Matched. **GO TO** Step 6.
+- **Row letters listed (e.g., "B, F")** → move those rows to `{judgements}`, record remainder as Matched. **GO TO** Step 6.
 
 **Exit check:** All rows in `{matches}` have an outcome recorded in `{outcomes}`.
 
----
+-----
 
 ### Step 6: Bulk Create / Skip No Matches
 
-| Field | Value |
-|---|---|
-| **Type** | Display → User Prompt |
-| **Progress Header** | `☑ **Fetch & Parse**  ›  ☑ **Match & Score**  ›  ☑ **ID Conflicts**  ›  ▣ **Reconcile**  ›  ☐ Hierarchy Check  ›  ☐ Report` |
-| **Status** | ✏️ *{n} unmatched entit(y/ies) — add or skip* |
-| **Notification Rule** | Render no-match list then prompt |
+|Field                |Value                                                                                                                      |
+|---------------------|---------------------------------------------------------------------------------------------------------------------------|
+|**Type**             |Display → User Prompt                                                                                                      |
+|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ▣ **Reconcile**  ›  ☐ Hierarchy Check  ›  ☐ Report`|
+|**Status**           |✏️ *{n} name(s) not found in the corporate tree.*                                                                           |
+|**Notification Rule**|Render no-match table then prompt                                                                                          |
 
 If `{noMatches}` is empty → **GO TO** Step 7.
 
-For each entity in `{noMatches}`, render the interpretation and offer:
-- *No match found. No parent info provided.* → **Add** or **Skip**
-- *No match found. Parent also not found.* → **Add** or **Skip**
-- *No match found. Parent matches — can be added as new child under [X].* → **Add under [X]** or **Skip**
+All entities require a parent. For any entity with no provided parent (or with a provided parent that has no match in the tree and isn't itself in `{noMatches}` being added this round), default to the existing tree root (the root of the anchor party's primary tree).
 
-For each **Add** decision, perform immediate parent check before calling `intappCommon:create_party` (see Appendix D).
+Provided Name column shows `Name (ID)` if ID provided, otherwise just `Name`.
+Add Under Parent column always shows actual `Name (ID)` of the resolved parent — never blank, never "Root".
 
-Call `intappCommon:create_party` (see Appendix E) for each approved entity and any missing ancestors (root-first).
+Render:
 
-Record all outcomes in `{outcomes}`. **GO TO** Step 7.
+| |Provided Name                |Add Under Parent         |
+|-|-----------------------------|-------------------------|
+|A|{providedName} ({providedId})|{parentName} ({parentId})|
+|B|…                            |…                        |
+
+Then prompt:
+
+> "Type **add all** to add all entities, **skip all** to skip all, or list specific rows to add (e.g., 'A, C')."
+
+On decision:
+
+- **add all** → for each entity, perform immediate parent check (Appendix D), then call `intappCommon:create_party` (Appendix E). Record as Created in `{outcomes}`.
+- **skip all** → record all as Skipped in `{outcomes}`.
+- **Row letters listed** → add those, skip the rest.
 
 **Exit check:** All rows in `{noMatches}` have an outcome recorded in `{outcomes}`.
 
----
+-----
 
-### Step 7: Judgement Calls (one by one)
+### Step 7: Judgement Calls (one at a time)
 
-| Field | Value |
-|---|---|
-| **Type** | Display → User Prompt |
-| **Progress Header** | `☑ **Fetch & Parse**  ›  ☑ **Match & Score**  ›  ☑ **ID Conflicts**  ›  ▣ **Reconcile**  ›  ☐ Hierarchy Check  ›  ☐ Report` |
-| **Status** | ✏️ *{n} judgement call(s) to review* |
-| **Notification Rule** | One prompt card per entity |
+|Field                |Value                                                                                                                      |
+|---------------------|---------------------------------------------------------------------------------------------------------------------------|
+|**Type**             |Display → User Prompt                                                                                                      |
+|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ▣ **Reconcile**  ›  ☐ Hierarchy Check  ›  ☐ Report`|
+|**Status**           |✏️ *Judgement Call {i} of {n}*                                                                                              |
+|**Notification Rule**|One prompt card per entity; render next only after current is resolved                                                     |
 
 If `{judgements}` is empty → **GO TO** Step 8.
 
-Open with:
-> "There are {n} entities that need a closer look. Let's go through them one at a time."
+For each entity in `{judgements}`, render the card:
 
-Render one card per entity. Card format varies by interpretation type:
+|      |Provided Name       |Best Existing Match                  |Match Score   |
+|------|--------------------|-------------------------------------|--------------|
+|Entity|{providedName}      |{topNameMatch} ({topNameMatchId})    |{entityScore}%|
+|Parent|{providedParentName}|{topParentMatch} ({topParentMatchId})|{parentScore}%|
 
-**Name matches, parent contradicts:**
-```
-Entity:          {providedName}
-Name score:      {score}%
-Tree parent:     {treeParentName} ({treeParentId})
-Provided parent: {providedParentName}
+If no parent was provided, the Parent row shows `—` in Provided Name, `—` in Best Existing Match, and `—` in Match Score.
 
-A) Accept match — keep existing tree placement
-B) Accept match — move to provided parent
-C) Create as new entity under provided parent
-D) Skip
-```
+Then prompt with options tailored to the interpretation type:
 
-**Fuzzy name, parent corroborates:**
-```
-Entity:          {providedName}
-Name score:      {score}%
-Best match:      {topNameMatch} ({topNameMatchId})
-Parent:          {providedParentName} — matches tree ✓
+**Moderate name match (entity score < threshold), parent corroborates:**
 
-A) Accept as same entity
-B) Create as new entity
-C) Skip
-```
+- A) Accept as same entity
+- B) Create as new entity under {bestParentName}
+- C) Skip
 
-**Fuzzy name, no corroboration:**
-```
-Entity:          {providedName}
-Name score:      {score}%
-Best match:      {topNameMatch} ({topNameMatchId})
-No parent info provided.
+**Strong name match (entity score ≥ threshold), parent not found or fuzzy:**
 
-A) Accept as same entity
-B) Create as new entity
-C) Skip
-```
+- A) Accept match — keep existing tree placement
+- B) Accept match — move under provided parent (creating parent if needed)
+- C) Create as new entity under provided parent
+- D) Skip
+
+**Strong name and parent matches, but relationship doesn't exist in tree:**
+
+- A) Accept match — keep existing tree placement under {treeParentName}
+- B) Accept match — move under {providedParentName}
+- C) Create as new entity under {providedParentName}
+- D) Skip
 
 Any Create decision triggers the immediate parent check from Appendix D.
 
-Record all outcomes in `{outcomes}`. 
+Record each outcome in `{outcomes}` before rendering the next card.
 
 **Exit check:** All rows in `{judgements}` have an outcome recorded in `{outcomes}`.
 
----
+-----
 
 ## Phase 2 — Hierarchy Check
 
----
+-----
 
 ### Step 8: Enrich Provided List with Resolved IDs
 
-| Field | Value |
-|---|---|
-| **Type** | Processing |
-| **Progress Header** | `☑ **Fetch & Parse**  ›  ☑ **Match & Score**  ›  ☑ **ID Conflicts**  ›  ☑ **Reconcile**  ›  ▣ **Hierarchy Check**  ›  ☐ Report` |
-| **Status** | 🌲 *Building enriched entity list…* |
-| **Notification Rule** | No output except Progress Header + Status |
+|Field                |Value                                                                                                                          |
+|---------------------|-------------------------------------------------------------------------------------------------------------------------------|
+|**Type**             |Processing                                                                                                                     |
+|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ☑ **Reconcile**  ›  ▣ **Hierarchy Check**  ›  ☐ Report`|
+|**Status**           |🌲 *Building enriched entity list…*                                                                                             |
+|**Notification Rule**|No output except Progress Header + Status                                                                                      |
 
 For every entity in `{providedList}` with outcome Matched or Created, fill in the resolved `id` from `{outcomes}`. Store as `{resolvedList}`.
 
 **Exit check:** Every Matched or Created entity in `{outcomes}` has a non-empty resolved ID in `{resolvedList}`.
 
----
+-----
 
 ### Step 9: Compare Parent Chains and Flag Mismatches
 
-| Field | Value |
-|---|---|
-| **Type** | Display → User Prompt |
-| **Progress Header** | `☑ **Fetch & Parse**  ›  ☑ **Match & Score**  ›  ☑ **ID Conflicts**  ›  ☑ **Reconcile**  ›  ▣ **Hierarchy Check**  ›  ☐ Report` |
-| **Status** | 🌲 *Comparing parent chains…* |
-| **Notification Rule** | Render mismatch summary if any found, else proceed silently |
+|Field                |Value                                                                                                                          |
+|---------------------|-------------------------------------------------------------------------------------------------------------------------------|
+|**Type**             |Display → User Prompt                                                                                                          |
+|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ☑ **Reconcile**  ›  ▣ **Hierarchy Check**  ›  ☐ Report`|
+|**Status**           |🌲 *Comparing parent chains…*                                                                                                   |
+|**Notification Rule**|Render mismatch summary if any found, else proceed silently                                                                    |
 
 For every resolved entity in `{resolvedList}` that has a provided parent, compare:
+
 - Provided parent (resolved to ID via `{resolvedList}`)
 - Tree node's actual `parentId` from `{candidatePool}`
 
@@ -371,6 +401,7 @@ If they differ → flag as mismatch.
 If no mismatches → **GO TO** Step COMPLETE.
 
 Render mismatch summary:
+
 ```
 ⚠ Parent mismatch: {entityName}
    Provided parent: {providedParentName} ({providedParentId})
@@ -378,6 +409,7 @@ Render mismatch summary:
 ```
 
 For each mismatch, prompt:
+
 - **A)** Keep tree placement — tree is correct, client data is outdated
 - **B)** Move in tree — client data reflects a real ownership change
 - **C)** Note for follow-up — flag in report, decide later
@@ -386,17 +418,18 @@ Record decisions. **GO TO** Step COMPLETE.
 
 **Exit check:** All mismatches have a recorded decision.
 
----
+-----
 
 ### Step COMPLETE
 
-| Field | Value |
-|---|---|
-| **Type** | Processing → Display |
-| **Progress Header** | `☑ **Fetch & Parse**  ›  ☑ **Match & Score**  ›  ☑ **ID Conflicts**  ›  ☑ **Reconcile**  ›  ☑ **Hierarchy Check**  ›  ▣ **Report**` |
-| **Status** | 📋 *Generating reconciliation report…* |
+|Field              |Value                                                                                                                              |
+|-------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+|**Type**           |Processing → Display                                                                                                               |
+|**Progress Header**|`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ☑ **Reconcile**  ›  ☑ **Hierarchy Check**  ›  ▣ **Report**`|
+|**Status**         |📋 *Generating reconciliation report…*                                                                                              |
 
 Render report header:
+
 ```
 Reconciliation Report
 ─────────────────────────────────────────────
@@ -418,43 +451,47 @@ Total reviewed:            {n}
 
 Render entity table:
 
-| Provided Name | Provided ID | Resolved ID | Outcome | Parent Match | Notes |
-|---|---|---|---|---|---|
+|Provided Name|Provided ID|Resolved ID|Outcome|Parent Match|Notes|
+|-------------|-----------|-----------|-------|------------|-----|
 
 **Outcome values:** `Matched` / `Created (ID: {x})` / `Skipped` / `Matched — flagged for rename` / `Skipped — ancestor not resolved`
 
----
+-----
 
 ### Step END
 
-| Field | Value |
-|---|---|
-| **Type** | Display |
-| **Progress Header** | *(none)* |
-| **Status** | *(none)* |
+|Field              |Value   |
+|-------------------|--------|
+|**Type**           |Display |
+|**Progress Header**|*(none)*|
+|**Status**         |*(none)*|
 
 Render:
+
 > "Reconciliation could not proceed. Reason: {reason}"
 
 Triggered when: party not found, candidate pool empty, or provided list empty.
 
----
+-----
 
 ## Appendix A: Building the Candidate Pool
 
 Flatten all non-null Corporate Structure sections from the `get_party` response into `{candidatePool}`:
 
 **Tree nodes** — for each tree in `corporateTrees`, recurse `rootCompany.subCompanies`:
+
 ```
 walk(node, parentId=null):
   append { id: node.externalId, name: node.name, parentId: parentId, source: "Tree" }
   for each child in node.subCompanies: walk(child, node.externalId)
 ```
+
 Skip duplicate `externalId` values across trees (first occurrence wins).
 
 **Shareholders** — `shareholders.shareholders[]` → `{ id, name, parentId: "", source: "Shareholder" }`
 
 **Beneficial Owners** — `beneficialOwners.beneficialOwners[]`, recurse nested `beneficialOwners`:
+
 ```
 walkUBO(ubo, parentId=""):
   append { id: ubo.id, name: ubo.name, parentId: parentId, source: "Beneficial Owner" }
@@ -467,55 +504,53 @@ walkUBO(ubo, parentId=""):
 
 Skip any section that is null.
 
----
+-----
 
 ## Appendix B: Input Format Detection
 
-| Scenario | Format | Fields extracted |
-|---|---|---|
-| 1 | Plain text, one name per line | `name` only |
-| 2 | Excel: Entity Name, Parent Entity | `name`, `parentName` |
-| 3 | Excel: Entity Name, Relationship Type | `name`, `relationship` (used as source hint) |
-| 4 | Excel: Entity Name, Parent Name | `name`, `parentName` |
-| 5 | Excel: Entity ID, Entity Name, Parent ID, Parent Name | `name`, `id`, `parentName`, `parentId` |
+|Scenario|Format                                               |Fields extracted                            |
+|--------|-----------------------------------------------------|--------------------------------------------|
+|1       |Plain text, one name per line                        |`name` only                                 |
+|2       |Excel: Entity Name, Parent Entity                    |`name`, `parentName`                        |
+|3       |Excel: Entity Name, Relationship Type                |`name`, `relationship` (used as source hint)|
+|4       |Excel: Entity Name, Parent Name                      |`name`, `parentName`                        |
+|5       |Excel: Entity ID, Entity Name, Parent ID, Parent Name|`name`, `id`, `parentName`, `parentId`      |
 
 **Relationship → source hint (Scenario 3):**
 
-| Value | Preferred source |
-|---|---|
-| GUO, Ultimate Owner | Tree (root) |
-| Subsidiary, Child | Tree |
-| Shareholder | Shareholders |
-| Beneficial Owner, UBO | Beneficial Owners |
-| Board, Director, Management | Management/Board |
-| Affiliate, Close Affiliate | Close Affiliates |
-| blank / unknown | All sources |
+|Value                      |Preferred source |
+|---------------------------|-----------------|
+|GUO, Ultimate Owner        |Tree (root)      |
+|Subsidiary, Child          |Tree             |
+|Shareholder                |Shareholders     |
+|Beneficial Owner, UBO      |Beneficial Owners|
+|Board, Director, Management|Management/Board |
+|Affiliate, Close Affiliate |Close Affiliates |
+|blank / unknown            |All sources      |
 
----
+-----
 
 ## Appendix C: Bucket Partitioning Rules
 
 After running `corp-tree-interpret`, partition `{bucketTable}` as follows:
 
-**`{idConflicts}`** — rows where:
-- `Top ID Match = Yes` AND `Top Name Match Score < {threshold}`, OR
-- `Top ID Match = Yes` AND `Top ID Match Parent ID ≠ Top Name Match Parent ID`
-
-**`{matches}`** — rows where `Bucket = Match` AND not in `{idConflicts}`
+**`{matches}`** — rows where `Bucket = Match`
 
 **`{noMatches}`** — rows where `Bucket = No Match`
 
-**`{judgements}`** — rows where `Bucket = Judgement` AND not in `{idConflicts}`
+**`{judgements}`** — rows where `Bucket = Judgement`
 
----
+Note: ID conflicts are resolved in Step 3 before scoring runs. Any entity surviving Step 3 with a resolved ID and matching name is already recorded as Matched in `{outcomes}` and excluded from scoring input.
+
+-----
 
 ## Appendix D: Immediate Parent Check
 
 Triggered before every `create_party` call during Steps 6 and 7.
 
 1. Does the provided parent name/ID exist in `{candidatePool}`? → proceed
-2. Has the provided parent already been created this session (in `{outcomes}`)? → proceed
-3. Parent not found anywhere → halt and surface:
+1. Has the provided parent already been created this session (in `{outcomes}`)? → proceed
+1. Parent not found anywhere → halt and surface:
 
 ```
 ⚠ Before creating [{entityName}], its parent needs to be resolved:
@@ -526,7 +561,7 @@ Triggered before every `create_party` call during Steps 6 and 7.
 
 If the parent needs to be created, apply this check recursively to the parent before creating it. Stop as soon as a node that exists is found. If user skips any ancestor → mark that ancestor and all descendants as `Skipped — ancestor not resolved` in `{outcomes}`. Do not create anything below a skipped node.
 
----
+-----
 
 ## Appendix E: create_party API Body
 
@@ -543,4 +578,3 @@ If the parent needs to be created, apply this check recursively to the parent be
 - For person entities (board members, UBOs) → `"partyType": "Person"`
 - If party type is uncertain → call `my-custom-intapp-mcp4:get_party_types` first and present options to the user
 - Record returned `id` and `partyId` in `{outcomes}`
-
