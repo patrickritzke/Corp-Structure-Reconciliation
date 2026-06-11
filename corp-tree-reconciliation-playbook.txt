@@ -343,29 +343,39 @@ For each entity in `{judgements}`, render the card:
 
 If no parent was provided, the Parent row shows `—` in Provided Name, `—` in Best Existing Match, and `—` in Match Score.
 
-Then prompt with options tailored to the interpretation type:
+Render options and tree previews per **Appendix F**.
 
 **Moderate name match (entity score < threshold), parent corroborates:**
 
-- A) Accept as same entity
-- B) Create as new entity under {bestParentName}
-- C) Skip
+**Option A** — Match Existing Entity (Moderate Match) under Existing Parent (Strong Match)
+**Option B** — Add New Entity under Existing Parent (Strong Match)
+
+> │ Type **`A`**, **`B`** or **`SKIP`**
 
 **Strong name match (entity score ≥ threshold), parent not found or fuzzy:**
 
-- A) Accept match — keep existing tree placement
-- B) Accept match — move under provided parent (creating parent if needed)
-- C) Create as new entity under provided parent
-- D) Skip
+**Option A** — Match Existing Entity (Strong Match) under Existing Parent (keep tree placement)
+**Option B** — Match Existing Entity (Strong Match) under Provided Parent ({parentQuality})
+**Option C** — Add New Entity under Provided Parent ({parentQuality})
+
+> │ Type **`A`**, **`B`**, **`C`** or **`SKIP`**
 
 **Strong name and parent matches, but relationship doesn't exist in tree:**
 
-- A) Accept match — keep existing tree placement under {treeParentName}
-- B) Accept match — move under {providedParentName}
-- C) Create as new entity under {providedParentName}
-- D) Skip
+**Option A** — Match Existing Entity (Strong Match) under Existing Parent (Strong Match)
+**Option B** — Match Existing Entity (Strong Match) under Provided Parent (Strong Match)
+**Option C** — Add New Entity under Provided Parent (Strong Match)
 
-Any Create decision triggers the immediate parent check from Appendix D.
+> │ Type **`A`**, **`B`**, **`C`** or **`SKIP`**
+
+**No parent provided, moderate or low entity match:**
+
+**Option A** — Match Existing Entity ({entityQuality})
+**Option B** — Add New Entity under Existing Tree Root
+
+> │ Type **`A`**, **`B`** or **`SKIP`**
+
+Any Create or Add decision triggers the immediate parent check from Appendix D.
 
 Record each outcome in `{outcomes}` before rendering the next card.
 
@@ -588,3 +598,42 @@ If the parent needs to be created, apply this check recursively to the parent be
 - For person entities (board members, UBOs) → `"partyType": "Person"`
 - If party type is uncertain → call `my-custom-intapp-mcp4:get_party_types` first and present options to the user
 - Record returned `id` and `partyId` in `{outcomes}`
+
+## Appendix F: Judgement Option Rendering
+
+### Option Label Format
+
+Every option label is fully descriptive of both entity and parent action:
+
+`{Entity Action} ({Entity Quality}) under {Parent Source} ({Parent Quality})`
+
+- **Entity Action:** `Match Existing Entity` | `Add New Entity`
+- **Entity Quality:** `Strong Match` | `Moderate Match` | `Low Match` *(omit if Add New Entity)*
+- **Parent Source:** `Existing Parent` | `Provided Parent` | `Existing Tree Root` *(when no parent provided)*
+- **Parent Quality:** `Strong Match` | `Moderate Match` | `Low Match` *(omit if no parent provided)*
+
+### Quality Thresholds
+
+|Label         |Score |Icon             |
+|--------------|------|-----------------|
+|Strong Match  |≥95%  |🟢               |
+|Moderate Match|60–94%|🟡               |
+|Low Match     |<60%  |🔴               |
+|New           |—     |🆕 Add New Entity|
+
+### Tree Preview Rendering Rules
+
+Always show exactly two levels: parent line, then entity indented beneath.
+
+**Entity line:**
+- Matched → `{matchedName} ({matchedId}) {icon} {score}%`
+- New → `{providedName} 🆕 Add New Entity`
+
+**Parent line:**
+- Existing Parent, provided parent given → `{treeParentName} ({treeParentId}) {icon} {score}%`
+- Provided Parent → `{providedParentName} ({resolvedParentId}) {icon} {score}%`
+- Existing Parent, no parent provided → `{treeParentName} ({treeParentId})` *(no icon, no score — nothing to compare against)*
+
+A parent line is always rendered. It is never omitted.
+
+**Skip** never renders a tree preview.
