@@ -269,8 +269,9 @@ Then prompt:
 
 > "Type **accept** to confirm matches (we won't add these names to the tree) or list any rows you'd like to review individually."
 
-- **accept** → record all as Matched in `{outcomes}`. **GO TO** Step 6.
-- **Row letters listed (e.g., "B, F")** → move those rows to `{judgements}`, record remainder as Matched. **GO TO** Step 6.
+- **ACCEPT** → record all as Matched in `{outcomes}`. **GO TO** Step 6.
+- **Row letters listed (e.g., "ACCEPT B, F")** → record accepted rows as Matched in `{outcomes}`; move rejected rows into `{noMatches}` using each rejected row's matched existing entity's parent as the resolved `Add Under Parent`. **GO TO** Step 6.
+- **SKIP** → move all rows into `{noMatches}` using each matched existing entity's parent as the resolved `Add Under Parent`. **GO TO** Step 6.
 
 **Exit check:** All rows in `{matches}` have an outcome recorded in `{outcomes}`.
 
@@ -306,10 +307,10 @@ Then prompt:
 On decision:
 
 - **add all** → for each entity, perform immediate parent check (Appendix D), then call `intappCommon:create_party` (Appendix E). Record as Created in `{outcomes}`.
-- **skip all** → record all as Skipped in `{outcomes}`.
-- **Row letters listed** → add those, skip the rest.
+- **SKIP ALL** → record all as `Unresolved` in `{outcomes}`.
+- **Row letters listed** → add those; record the rest as `Unresolved` in `{outcomes}`.
 
-**Exit check:** All rows in `{noMatches}` have an outcome recorded in `{outcomes}`.
+**Exit check:** All rows in `{noMatches}` have an outcome of Created or Unresolved in `{outcomes}`.
 
 -----
 
@@ -323,6 +324,16 @@ On decision:
 |**Notification Rule**|One prompt card per entity; render next only after current is resolved                                                     |
 
 If `{judgements}` is empty → **GO TO** Step 8.
+
+**Unresolved parent check:** Before rendering the card, check whether the entity's provided parent has outcome `Unresolved` in `{outcomes}`. If so, render:
+
+> ⚠ **[{providedParentName}]** was skipped and has not been added to the tree.
+> → Type **`ADD`** to create it now (before this entity) | Type **`SKIP`** to skip this entity
+
+- **ADD** → run the immediate parent check (Appendix D), call `intappCommon:create_party` for the parent, record as Created in `{outcomes}`, then continue to render the judgement card normally.
+- **SKIP** → record entity as `Unresolved — parent not resolved` in `{outcomes}` and advance to the next judgement card without rendering it.
+
+If the entity has no provided parent, or the provided parent is not present in `{outcomes}` at all, skip this check.
 
 For each entity in `{judgements}`, render the card:
 
@@ -440,13 +451,12 @@ Input format:   Scenario {n}
 Threshold:      {threshold * 100}%
 Sources loaded: {sourcesLoaded}
 
-Matched:                   {n}
-Created:                   {n}
-Skipped:                   {n}
-Skipped (ancestor blocked):{n}
-Flagged for rename:        {n}
-Parent mismatches found:   {n}
-Total reviewed:            {n}
+Matched:                    {n}
+Created:                    {n}
+Unresolved:                 {n}
+Unresolved (parent):        {n}
+Flagged for rename:         {n}
+Total reviewed:             {n}
 ```
 
 Render entity table:
@@ -454,7 +464,7 @@ Render entity table:
 |Provided Name|Provided ID|Resolved ID|Outcome|Parent Match|Notes|
 |-------------|-----------|-----------|-------|------------|-----|
 
-**Outcome values:** `Matched` / `Created (ID: {x})` / `Skipped` / `Matched — flagged for rename` / `Skipped — ancestor not resolved`
+**Outcome values:** `Matched` / `Created (ID: {x})` / `Unresolved` / `Unresolved — parent not resolved` / `Matched — flagged for rename`
 
 -----
 
