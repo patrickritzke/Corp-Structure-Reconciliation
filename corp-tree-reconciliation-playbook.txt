@@ -213,11 +213,13 @@ Render the conflict table:
 
 Then prompt:
 
-> "How would you like to resolve these? Choose one option for all rows, or specify per row."
->
-> **A) Keep Existing Names** — accept tree's current names; resolve provided entities to existing tree nodes
-> **B) Change Existing Names to New Names** — rename tree nodes to match provided names
-> **C) Add New Names as New Entities** — make the provided IDs unique so the new names are added as separate entities
+> │ Type **`A`** to keep existing names for all rows (resolve to existing tree nodes)
+
+> │ Type **`B`** to rename existing tree nodes to match provided names
+
+> │ Type **`C`** to add provided names as new entities (IDs dropped, sent to scoring)
+
+> │ Type row-level decisions to resolve individually *(e.g., `1A, 2C, 3B`)*
 
 On user decision:
 
@@ -267,7 +269,11 @@ Render:
 
 Then prompt:
 
-> "Type **accept** to confirm matches (we won't add these names to the tree) or list any rows you'd like to review individually."
+> │ Type **`ACCEPT`** to confirm all matches (none will be added to the tree)
+
+> │ Type specific row letters to accept individually *(e.g., `ACCEPT A, D, F`)*
+
+> │ Type **`SKIP`** to reject all matches and add as new entities
 
 - **accept** → record all as Matched in `{outcomes}`. **GO TO** Step 6.
 - **Row letters listed (e.g., "B, F")** → move those rows to `{judgements}`, record remainder as Matched. **GO TO** Step 6.
@@ -301,7 +307,11 @@ Render:
 
 Then prompt:
 
-> "Type **add all** to add all entities, **skip all** to skip all, or list specific rows to add (e.g., 'A, C')."
+> │ Type **`ADD ALL`** to add all entities to the tree
+
+> │ Type **`SKIP ALL`** to skip all, no changes made
+
+> │ Type specific row letters to add individually, skipping the rest *(e.g., `A, C`)*
 
 On decision:
 
