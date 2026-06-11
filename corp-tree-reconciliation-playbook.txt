@@ -149,14 +149,14 @@ Pure processing (no content):
 
 -----
 
-### Step 1: Fetch Party and Build Candidate Pool
+### Step 0: Fetch Party and Select Input Method
 
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
-|**Type**             |Processing                                                                               |
+|**Type**             |Processing → Display → User Prompt                                                       |
 |**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
 |**Status**           |🔍 *Fetching party {partyId}…*                                                            |
-|**Notification Rule**|No output except Progress Header + Status                                                |
+|**Notification Rule**|No output during fetch. Render prompt once party is loaded.                              |
 
 - Call `intappCommon:get_party` with `party_id` = `{partyId}`
 - Set `{partyName}`, `{provider}`, `{sourcesLoaded}` from response
@@ -164,6 +164,252 @@ Pure processing (no content):
 - If `corporateTrees` is null or empty → **GO TO** Step END
 
 **Exit check:** `{candidatePool}` contains at least one node.
+
+Once loaded, render:
+
+> **{partyName}** (Party ID: {partyId})
+> Tree loaded — {n} nodes across {m} source(s): {sourcesLoaded}
+
+Then prompt:
+
+> │ How would you like to reconcile this tree?
+>
+> │ **`1`** — Upload a file (Excel or text list you have obtained from another source)
+>
+> │ **`2`** — Paste a list of entity names (with or without parent references)
+>
+> │ **`3`** — Research public sources and filings (SEC EDGAR, Companies House, OpenCorporates)
+
+On user decision:
+
+- **1** → set `{inputMethod}` = `Upload`. **GO TO** Step 2.
+- **2** → set `{inputMethod}` = `Paste`. **GO TO** Step 2.
+- **3** → set `{inputMethod}` = `Research`. **GO TO** Research Phase.
+
+-----
+
+### Step 1: Confirm Input
+
+|Field                |Value                                                                                    |
+|---------------------|-----------------------------------------------------------------------------------------|
+|**Type**             |Processing                                                                               |
+|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Status**           |🔍 *Waiting for input…*                                                                   |
+|**Notification Rule**|No output except Progress Header + Status                                                |
+
+- If `{inputMethod}` = `Upload` or `Paste` → wait for user to provide the file or pasted list, then **GO TO** Step 2.
+- If `{inputMethod}` = `Research` → `{providedList}` has been built by the Research Phase. **GO TO** Step 2 directly.
+
+**Exit check:** Input is available for parsing.
+
+-----
+
+## Research Phase (Input Method 3 only)
+
+-----
+
+### Research Step 1: Identify Sources
+
+|Field                |Value                                                                                    |
+|---------------------|-----------------------------------------------------------------------------------------|
+|**Type**             |Processing → Display → User Prompt                                                       |
+|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Status**           |🔍 *Identifying available public sources for {partyName}…*                                |
+|**Notification Rule**|No output during research. Render source list once complete.                             |
+
+- Search SEC EDGAR for the party's CIK and most recent 10-K filing. Check for an EX-21 or EX-21.1 exhibit (subsidiaries list).
+- Search Companies House if the party or its GUO appears to be a UK-registered entity.
+- Search OpenCorporates for any jurisdiction with available registry data.
+- Search the party's investor relations page and most recent annual report for subsidiary or structure disclosures.
+- Do not search sources that require authentication or are behind paywalls.
+
+Set `{researchSources}` — a list of sources found, each with:
+
+```
+{ name, url, type, confidence, filingDate? }
+```
+
+**Confidence tiers:**
+
+| Source | Confidence |
+|---|---|
+| SEC EDGAR EX-21 / EX-21.1 | High |
+| Companies House | High |
+| OpenCorporates | Medium |
+| Investor relations / annual report (structured) | Medium |
+| Investor relations / annual report (scraped) | Low |
+| Wikipedia / press releases | Low |
+
+Render:
+
+> **Sources found for {partyName}:**
+>
+> | Source | Type | Confidence | Date |
+> |---|---|---|---|
+> | {name} | {type} | {confidence} | {filingDate or —} |
+>
+> │ Type **`PROCEED`** to fetch all sources
+> │ Type source numbers to include only specific ones *(e.g., `1, 3`)*
+> │ Type **`SKIP`** to cancel research and return to input method selection
+
+---
+
+### Research Step 2: Fetch and Parse Sources
+
+|Field                |Value                                                                                    |
+|---------------------|-----------------------------------------------------------------------------------------|
+|**Type**             |Processing                                                                               |
+|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Status**           |🔍 *Fetching {n} source(s)…*                                                              |
+|**Notification Rule**|No output except Progress Header + Status                                                |
+
+For each selected source:
+
+- Fetch the document and extract all entity names, jurisdictions, and any available parent or relationship information.
+- Detect the structure: explicit hierarchy, flat list with parent column, flat list only.
+- If explicit hierarchy or parent column → extract `{ name, parentName }` pairs.
+- If flat list only → set `parentName` = name of the registrant (party GUO or root) with note "assumed direct subsidiary — source provides no hierarchy".
+- If structure is ambiguous (e.g. visual groupings, indented formatting without explicit labels) → treat as flat list. Do not infer hierarchy from visual layout.
+- Tag each entity with `{ source, confidence, filingDate?, assumedParent: true/false }`.
+
+Set `{researchRaw}` — all extracted entities before deduplication.
+
+---
+
+### Research Step 3: Merge and Deduplicate
+
+|Field                |Value                                                                                    |
+|---------------------|-----------------------------------------------------------------------------------------|
+|**Type**             |Processing                                                                               |
+|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Status**           |🔍 *Merging sources…*                                                                     |
+|**Notification Rule**|No output except Progress Header + Status                                                |
+
+Merge `{researchRaw}` into a single deduplicated list:
+
+- Normalize all names (apply client stopwords if available; otherwise strip standard legal suffixes).
+- For each entity, find any existing entry in the merged list with normalized name similarity ≥ 99%.
+- **Match found:** merge sources into a combined `sources` array. If parent info conflicts across sources, retain the higher-confidence source's parent and note the conflict.
+- **No match:** add as new entry.
+- **Short normalized name (≤ 6 characters after stripping):** do not auto-merge — flag for manual review. Short names are high risk for false merges.
+
+Set `{researchMerged}` — deduplicated list with `{ name, parentName, sources[], confidence, assumedParent, notes? }`.
+
+---
+
+### Research Step 4: Surface Assumptions and Confirm
+
+|Field                |Value                                                                                    |
+|---------------------|-----------------------------------------------------------------------------------------|
+|**Type**             |Display → User Prompt                                                                    |
+|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Status**           |🔍 *{n} entities found across {m} source(s). Review assumptions before proceeding.*       |
+|**Notification Rule**|Render summary then assumptions then prompt                                              |
+
+Render summary:
+
+```
+Research Summary
+─────────────────────────────────────────────
+Party:          {partyName}
+Sources fetched: {n}
+Total entities:  {n}
+Corroborated:    {n} (found in 2+ sources)
+Single source:   {n}
+Assumed parent:  {n} (no hierarchy provided by source)
+Flagged (short name, possible false merge): {n}
+```
+
+Render assumptions block (only if any assumedParent = true):
+
+```
+Parent Assumptions
+─────────────────────────────────────────────
+The following sources provided flat lists with no hierarchy. All entities from these sources have been assigned the default parent shown.
+
+SEC EDGAR EX-21.1 (FY2024)
+Default parent: Innospec Inc.
+Entities affected: {n}
+Note: Exhibit 21 lists significant subsidiaries only. Filing date 2025-02-19 — may not reflect current structure.
+
+[additional sources…]
+```
+
+Render the research findings as a tree using the `chat-tree-display` skill. Build the nodes payload from `{researchMerged}` as follows.
+
+**Temporary ID assignment (for tree construction only, not stored):**
+Assign each entity a temporary `id` = its normalized name. Set `parentId` = the normalized parent name if the parent exists in the node list; `null` if not found or is the assumed root.
+
+**Node field rules:**
+
+| Field | Value |
+|---|---|
+| `id` | temporary normalized name (tree construction only) |
+| `name` | entity name from `{researchMerged}` |
+| `parentId` | normalized parent name if parent in list; `null` otherwise |
+| `iconBef` | `null` |
+| `iconAft` | `📋` for all research-sourced entities; `👤` for User Provided only |
+| `iconAftSuffix` | abbreviated source label(s) joined with ` + ` (e.g. `EDGAR + User`, `EDGAR`, `CH`) — append `*` if `assumedParent = true` |
+
+**Source abbreviations:**
+
+| Source | Abbreviation |
+|---|---|
+| SEC EDGAR | `EDGAR` |
+| Companies House | `CH` |
+| OpenCorporates | `OC` |
+| IR / Annual Report | `IR` |
+| User Provided | `User` |
+
+Render a legend beneath the tree only if any node has `assumedParent = true`:
+
+> `*` Parent assumed — source provided no hierarchy
+
+Example output:
+
+```
+Innospec Inc. 📋 EDGAR + User
+    Innospec Active Chemicals LLC 📋 EDGAR + User
+    Innospec Fuel Specialties LLC 📋 EDGAR*
+    Innospec Deutschland GmbH 📋 EDGAR*
+    Bachman Services, Inc. 📋 EDGAR + User
+    Independence Oilfield Chemicals, LLC 📋 EDGAR + User
+    BioSuite LLC 📋 EDGAR*
+    Strata Control Services, Inc. 📋 EDGAR*
+    Albemar Holdings 👤 User
+    Sigma Energy Partners LLC 👤 User
+    NewCo Oilfield Services Ltd 👤 User
+    Innospec Fuels LLC 👤 User
+
+* Parent assumed — source provided no hierarchy
+```
+
+Render flagged items (only if any short-name flags):
+
+```
+Manual Review Required
+─────────────────────────────────────────────
+The following entities could not be safely auto-merged due to short normalized names. Review and confirm whether each is a duplicate or a distinct entity.
+
+"Innospec Ltd" vs "Innospec Inc." — normalized to "innospec" in both cases
+→ Type SAME to merge | DIFFERENT to keep as separate entries
+```
+
+Resolve any flagged items, then prompt:
+
+> │ Type **`PROCEED`** to use this as the provided list and begin reconciliation
+>
+> │ Type **`EDIT`** to modify the list before proceeding
+>
+> │ Type **`RESTART`** to return to input method selection
+
+On **PROCEED** → set `{providedList}` = `{researchMerged}`. Set `{inputMethod}` details for report. **GO TO** Step 2.
+
+On **EDIT** → allow the analyst to add, remove, or modify entries inline. Re-render summary. Re-prompt.
+
+On **RESTART** → return to Step 0 input method prompt.
+
+**Exit check:** `{providedList}` contains at least one entity with a non-empty name.
 
 -----
 
@@ -176,7 +422,11 @@ Pure processing (no content):
 |**Status**           |🔍 *Parsing provided entity list…*                                                        |
 |**Notification Rule**|No output except Progress Header + Status                                                |
 
-Detect input format and extract into `{providedList}`. See Appendix B for format detection rules.
+If `{inputMethod}` = `Research` → `{providedList}` is already set from Research Step 4. Skip parsing. **GO TO** exit check.
+
+Otherwise, detect input format and extract into `{providedList}`. See Appendix B for format detection rules.
+
+If input came from research, each entry in `{providedList}` carries additional metadata (`sources[]`, `confidence`, `assumedParent`, `notes?`) that flows through to the final report.
 
 **Exit check:** `{providedList}` contains at least one entity with a non-empty name.
 
@@ -411,6 +661,9 @@ Provider:       {provider}
 Input format:   Scenario {n}
 Threshold:      {threshold * 100}%
 Sources loaded: {sourcesLoaded}
+Input method:       {Upload / Paste / Research}
+Sources fetched:    {n — if Research; otherwise —}
+Filing date(s):     {dates — if Research; otherwise —}
 
 Matched:                    {n}
 Created:                    {n}
@@ -422,7 +675,7 @@ Total reviewed:             {n}
 
 Render entity table:
 
-|Provided Name|Provided ID|Resolved ID|Outcome|Parent Match|Notes|
+|Provided Name|Provided ID|Resolved ID|Outcome|Parent Match|Source(s)|Notes|
 |-------------|-----------|-----------|-------|------------|-----|
 
 **Outcome values:** `Matched` / `Created (ID: {x})` / `Unresolved` / `Unresolved — parent not resolved` / `Matched — flagged for rename`
