@@ -354,6 +354,8 @@ If no parent was provided, the Parent row shows `—` in Provided Name, `—` in
 
 Then render the curated options for the matching variant below. For each option, render the option label followed immediately by a `chat-tree-display` tree showing the result. Build the nodes payload per **Appendix F**, then render using the `chat-tree-display` skill.
 
+For Option A, the parent node always shows the matched entity's actual existing tree parent (`{treeParentId}`, `{treeParentName}`). Show `iconAft` and `iconAftSuffix` (match score against provided parent) on the parent node only if a parent was provided in the input. If no parent was provided, set `iconAft: null` and `iconAftSuffix: null` on the parent node.
+
 **Moderate name match (entity score < threshold), parent corroborates:**
 
 **Option A** — Match Existing Entity (Moderate Match) under Existing Parent (Strong Match)
@@ -364,22 +366,20 @@ Then render the curated options for the matching variant below. For each option,
 **Strong name match (entity score ≥ threshold), parent not found or fuzzy:**
 
 **Option A** — Match Existing Entity (Strong Match) under Existing Parent (keep tree placement)
-**Option B** — Match Existing Entity (Strong Match) under Provided Parent ({parentQuality})
-**Option C** — Add New Entity under Provided Parent ({parentQuality})
+**Option B** — Add New Entity under Provided Parent ({parentQuality})
 
-> │ Type **`A`**, **`B`**, **`C`** or **`SKIP`**
+> │ Type **`A`**, **`B`** or **`SKIP`**
 
 **Strong name and parent matches, but relationship doesn't exist in tree:**
 
-**Option A** — Match Existing Entity (Strong Match) under Existing Parent (Strong Match)
-**Option B** — Match Existing Entity (Strong Match) under Provided Parent (Strong Match)
-**Option C** — Add New Entity under Provided Parent (Strong Match)
+**Option A** — Match Existing Entity (Strong Match) under Existing Parent ({existingParentQuality})
+**Option B** — Add New Entity under Provided Parent (Strong Match)
 
-> │ Type **`A`**, **`B`**, **`C`** or **`SKIP`**
+> │ Type **`A`**, **`B`** or **`SKIP`**
 
 **No parent provided, moderate or low entity match:**
 
-**Option A** — Match Existing Entity ({entityQuality})
+**Option A** — Match Existing Entity ({entityQuality}) under Existing Parent (keep tree placement)
 **Option B** — Add New Entity under Existing Tree Root
 
 > │ Type **`A`**, **`B`** or **`SKIP`**
@@ -583,11 +583,13 @@ Build a two-node payload for each option in a Judgement Call card and render usi
 
 ### Parent node rules
 
+Option A always uses the matched entity's existing tree parent. Option B always uses the provided parent as the target for a new entity.
+
 | Situation | id | name | iconAft | iconAftSuffix |
 |---|---|---|---|---|
-| Existing Parent, provided parent given | `{treeParentId}` | `{treeParentName}` | icon for parentScore | `{parentScore}%` |
-| Provided Parent | `{resolvedParentId}` | `{providedParentName}` | icon for parentScore | `{parentScore}%` |
-| Existing Parent, no parent provided | `{treeParentId}` | `{treeParentName}` | `null` | `null` |
+| Option A — parent was provided in input | `{treeParentId}` | `{treeParentName}` | icon for parentScore | `{parentScore}%` |
+| Option A — no parent provided in input | `{treeParentId}` | `{treeParentName}` | `null` | `null` |
+| Option B — provided parent (add new entity) | `{resolvedParentId}` | `{providedParentName}` | icon for parentScore | `{parentScore}%` |
 
 Parent node always has `parentId: null` (it is the root of the preview) and `iconBef: null`.
 
