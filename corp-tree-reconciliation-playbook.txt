@@ -859,7 +859,7 @@ Adding two new subsidiaries under Innospec Inc. (root `042006515`) on an interna
 
 ## Appendix F: Judgement Call Tree Preview Nodes
 
-Build a two-node payload for each option in a Judgement Call card and render using the `chat-tree-display` skill. Every option shows exactly two nodes: the parent and the entity beneath it.
+Build a shared skeleton of nodes for each Judgement Call card and render a separate annotated view per option using the `chat-tree-display` skill.
 
 **Node schema reminder:**
 ```json
@@ -875,28 +875,162 @@ Build a two-node payload for each option in a Judgement Call card and render usi
 |<60%      |🔴     |`{score}%`     |
 |New entity|🆕     |`Add New Entity`|
 
-### Parent node rules
+---
 
-Option A always uses the matched entity's existing tree parent. Option B always uses the provided parent as the target for a new entity.
+### Step 1 — Collect all matched nodes across all options
 
-| Situation | id | name | iconAft | iconAftSuffix |
-|---|---|---|---|---|
-| Option A — parent was provided in input | `{treeParentId}` | `{treeParentName}` | icon for parentScore | `{parentScore}%` |
-| Option A — no parent provided in input | `{treeParentId}` | `{treeParentName}` | `null` | `null` |
-| Option B — provided parent (add new entity) | `{resolvedParentId}` | `{providedParentName}` | icon for parentScore | `{parentScore}%` |
+For the current judgement call, identify every node that is relevant to any option:
 
-Parent node always has `parentId: null` (it is the root of the preview) and `iconBef: null`.
+- **Option A entity match** — the best existing candidate match for the provided entity name (`{topNameMatchId}`)
+- **Option A direct parent** — the tree parent of that matched entity (`{treeParentId}`)
+- **Option B direct parent** — the best existing candidate match for the provided parent name (`{resolvedParentId}`), if a parent was provided; otherwise the tree root
 
-### Entity node rules
+For each of these nodes, walk up `{candidatePool}` via `parentId` links until `parentId` is null (ultimate owner). Collect every ancestor along the way.
 
-| Situation | id | name | iconAft | iconAftSuffix |
-|---|---|---|---|---|
-| Matched existing | `{topNameMatchId}` | `{topNameMatch}` | icon for entityScore | `{entityScore}%` |
-| Add New Entity | `null` | `{providedName}` | `🆕` | `Add New Entity` |
+The union of all these nodes — matched nodes, their direct parents, and all ancestors up to root — forms the **shared skeleton**.
 
-Entity node always has `parentId` = the parent node's `id` and `iconBef: null`.
+Deduplicate by `id`. Preserve `parentId` links from `{candidatePool}` so the tree renders correctly.
+
+---
+
+### Step 2 — Annotate per option
+
+For each option, start with the shared skeleton and apply icons only to nodes relevant to that option. All other nodes in the skeleton render with `iconAft: null` and `iconAftSuffix: null`.
+
+#### Option A — Match existing entity
+
+| Node | iconAft | iconAftSuffix |
+|---|---|---|
+| `{treeParentId}` (direct parent of matched entity) | icon for `{parentScore}` | `{parentScore}%` — only if a parent was provided in input; otherwise `null`/`null` |
+| `{topNameMatchId}` (matched entity) | icon for `{entityScore}` | `{entityScore}%` |
+| All other skeleton nodes | `null` | `null` |
+
+The new entity is **not** inserted — Option A matches an existing node.
+
+#### Option B — Add new entity
+
+| Node | iconAft | iconAftSuffix |
+|---|---|---|
+| `{resolvedParentId}` (provided parent match) | icon for `{parentScore}` | `{parentScore}%` |
+| All other skeleton nodes | `null` | `null` |
+
+Insert one additional node for the new entity:
+
+```json
+{ "id": null, "name": "{providedName}", "parentId": "{resolvedParentId}", "iconBef": null, "iconAft": "🆕", "iconAftSuffix": "Add New Entity" }
+```
+
+The existing matched entity (`{topNameMatchId}`) remains in the skeleton unscored — it appears as context showing where the name already exists in the tree.
+
+#### No parent provided
+
+When no parent was provided in the input, both options use the tree root as the placement parent. The root carries no score icon in either option.
+
+---
+
+### Step 3 — Render
+
+Render each option's annotated node list using the `chat-tree-display` skill. The skeleton structure is identical across options; only the icon annotations and the presence/absence of the new entity node differ.
 
 **Skip** — never renders a tree preview.
+
+---
+
+### Worked examples
+
+**Discrepancy parent case** (entity strong, provided parent points to different node than tree parent):
+
+Option A entity match: Specialty Intermediates, Inc. (114410017) → tree parent: Bachman Services, Inc. (007780836) → Innospec Inc. (042006515)
+Option B parent match: Innospec Active Chemicals LLC (093788651) → Innospec Inc. (042006515)
+
+Shared skeleton nodes: Innospec Inc., Innospec Active Chemicals LLC, Bachman Services, Inc., Specialty Intermediates, Inc. (114410017)
+
+Option A — Match Existing Entity (Strong Match) under Existing Parent:
+```
+Innospec Inc. (042006515)
+    Innospec Active Chemicals LLC (093788651)
+    Bachman Services, Inc. (007780836) 🔴 18%
+        Specialty Intermediates, Inc. (114410017) 🟢 100%
+```
+
+Option B — Add New Entity under Provided Parent (Strong Match):
+```
+Innospec Inc. (042006515)
+    Innospec Active Chemicals LLC (093788651) 🟢 100%
+        Specialty Intermediates, Inc. 🆕 Add New Entity
+    Bachman Services, Inc. (007780836)
+        Specialty Intermediates, Inc. (114410017)
+```
+
+---
+
+**Strong entity, low parent match case** (entity strong, provided parent fuzzy — entity's tree parent is the root):
+
+Option A entity match: Teneo Securities LLC (1768) → tree parent: Innospec Inc. (042006515)
+Option B parent match: Albemar Holdings (custom-albemare) → Innospec Inc. (042006515)
+
+Shared skeleton nodes: Innospec Inc., Albemar Holdings, Teneo Securities LLC (1768)
+
+Option A — Match Existing Entity (Strong Match) under Existing Parent (keep tree placement):
+```
+Innospec Inc. (042006515) 🔴 18%
+    Albemar Holdings (custom-albemare)
+    Teneo Securities LLC (1768) 🟢 100%
+```
+
+Option B — Add New Entity under Provided Parent (Low Match):
+```
+Innospec Inc. (042006515)
+    Albemar Holdings (custom-albemare) 🟡 61%
+        Teneo Securities LLC 🆕 Add New Entity
+    Teneo Securities LLC (1768)
+```
+
+---
+
+**Moderate entity, parent corroborates case** (entity moderate, provided parent strong and agrees):
+
+Option A entity match: Vijall, Inc. (153765375) → tree parent: Innospec Active Chemicals LLC (093788651) → Innospec Inc.
+Option B parent match: Innospec Active Chemicals LLC (093788651) → Innospec Inc. (same node)
+
+Shared skeleton nodes: Innospec Inc., Innospec Active Chemicals LLC, Vijall, Inc. (153765375)
+
+Option A — Match Existing Entity (Moderate Match) under Existing Parent (Strong Match):
+```
+Innospec Inc. (042006515)
+    Innospec Active Chemicals LLC (093788651) 🟢 100%
+        Vijall, Inc. (153765375) 🟡 86%
+```
+
+Option B — Add New Entity under Provided Parent (Strong Match):
+```
+Innospec Inc. (042006515)
+    Innospec Active Chemicals LLC (093788651) 🟢 100%
+        Vijal Inc 🆕 Add New Entity
+        Vijall, Inc. (153765375)
+```
+
+---
+
+**No parent provided, moderate entity match case**:
+
+Option A entity match: Innospec Fuel Specialties LLC (073901295) → tree parent: Innospec Inc. (042006515)
+Option B: add new under tree root — Innospec Inc. (042006515)
+
+Shared skeleton nodes: Innospec Inc., Innospec Fuel Specialties LLC (073901295)
+
+Option A — Match Existing Entity (Moderate Match) under Existing Parent (keep tree placement):
+```
+Innospec Inc. (042006515)
+    Innospec Fuel Specialties LLC (073901295) 🟡 72%
+```
+
+Option B — Add New Entity under Existing Tree Root:
+```
+Innospec Inc. (042006515)
+    Innospec Fuel Specialties LLC (073901295)
+    Innospec Fuels LLC 🆕 Add New Entity
+```
 
 -----
 
