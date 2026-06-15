@@ -50,7 +50,7 @@ Reconciles a client-provided corporate entity list against an Intapp party's Cor
 - `{matches}` — rows with Bucket = Match
 - `{noMatches}` — rows with Bucket = No Match
 - `{judgements}` — rows with Bucket = Judgement
-- `{outcomes}` — map of `providedName → { resolvedId, treeNodeId?, outcome, parentMatch, notes }` built throughout Phase 1. `treeNodeId` is set for Created entities and holds the `INTAPP-{partyId}` string used as the node's external ID in the corporate tree.
+- `{outcomes}` — map of `providedName → { resolvedId, outcome, parentMatch, notes }` built throughout Phase 1
 
 -----
 
@@ -752,7 +752,7 @@ Note: ID conflicts are resolved in Step 3 before scoring runs. Any entity surviv
 
 ## Appendix D: Immediate Parent Check
 
-Triggered before every `create_party` call during Steps 6 and 7.
+Triggered before every node add during Steps 6 and 7.
 
 1. Does the provided parent name/ID exist in `{candidatePool}`? → proceed
 2. Has the provided parent already been created this session (in `{outcomes}`)? → proceed
@@ -900,7 +900,7 @@ Pass the full nodes array to the `chat-tree-display` skill and render the result
 
 ## Appendix H: editTree — Corporate Tree Mutation
 
-Use `IntappJungle:editTree` to insert, rename, or delete nodes in a corporate tree after a party has been created via `create_party`.
+Use `IntappJungle:editTree` to rename or delete nodes in a corporate tree. For adding new nodes, see Appendix E.
 
 ### Required Parameters
 
@@ -911,21 +911,14 @@ Use `IntappJungle:editTree` to insert, rename, or delete nodes in a corporate tr
 
 ### Optional Mutation Arrays
 
-Omit any array that has no operations. All three may be included in a single call.
+Omit any array that has no operations. Both may be included in a single call.
 
 | Array | Operation | Required fields |
 |---|---|---|
-| `add` | Insert new nodes | `id`, `idParent`, `name` |
 | `edit` | Rename existing nodes by external ID | `id`, `name` |
 | `delete` | Remove a node and its entire subtree | `id` |
 
-**Execution order within a single call:** deletions run first, then edits, then additions.
-
-### ID Conventions for New Nodes
-
-New nodes added via `create_party` have no provider external ID. Use the pattern `INTAPP-{partyId}` as the node's `id` in `editTree`, where `{partyId}` is the integer ID returned by `create_party`.
-
-Store this generated ID as `treeNodeId` in `{outcomes}` alongside `resolvedId`.
+**Execution order within a single call:** deletions run first, then edits.
 
 ### Determining rootId and providerType
 
@@ -941,23 +934,6 @@ Store this generated ID as `treeNodeId` in `{outcomes}` alongside `resolvedId`.
 | `None` or blank | Use `DunAndBradstreet` as default; note in outcomes |
 
 If the party has multiple trees, always target the primary tree (first entry in `corporateTrees`).
-
-### Batching Rule
-
-All nodes being added in a single step (Step 6 ADD ALL, or multiple parents + children in Step 7) MUST be submitted in a single `editTree` call, not one call per node. The `add` array supports forward references: a node can reference another node in the same `add` array as its `idParent` — ordering is handled automatically.
-
-### Example — Add Two Nodes
-
-```json
-{
-  "rootId": "042006515",
-  "providerType": "DunAndBradstreet",
-  "add": [
-    { "id": "INTAPP-9001", "idParent": "042006515", "name": "NewCo Oilfield Services Ltd" },
-    { "id": "INTAPP-9002", "idParent": "INTAPP-9001", "name": "NewCo Sub LLC" }
-  ]
-}
-```
 
 ### Example — Rename a Node
 
@@ -975,10 +951,10 @@ All nodes being added in a single step (Step 6 ADD ALL, or multiple parents + ch
 
 If `editTree` returns an error:
 
-- Record the failure in `{outcomes}` as `Created — tree insert failed` with the error message in Notes.
+- Record the failure in `{outcomes}` with a note of `rename/delete failed — {error message}`.
 - Do not halt the playbook. Continue to the next entity.
 - Surface a warning in the Step COMPLETE report header:
 
 ```
-⚠ {n} tree insert(s) failed — parties were created but not linked in the tree. See Notes column.
+⚠ {n} tree mutation(s) failed — see Notes column.
 ```
