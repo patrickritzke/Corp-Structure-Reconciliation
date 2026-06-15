@@ -50,7 +50,7 @@ Reconciles a client-provided corporate entity list against an Intapp party's Cor
 - `{matches}` — rows with Bucket = Match
 - `{noMatches}` — rows with Bucket = No Match
 - `{judgements}` — rows with Bucket = Judgement
-- `{outcomes}` — map of `providedName → { resolvedId, outcome, parentMatch, notes }` built throughout Phase 1
+- `{outcomes}` — map of `providedName → { resolvedId, treeNodeId?, outcome, parentMatch, notes }` built throughout Phase 1. `treeNodeId` is set for Created entities and holds the `INTAPP-{partyId}` string used as the node's external ID in the corporate tree.
 
 -----
 
@@ -472,7 +472,7 @@ Then prompt:
 On user decision:
 
 - **A (all)** → for every conflict, resolve to existing tree node, record as Matched in `{outcomes}` with note "existing name preserved"
-- **B (all)** → for every conflict, flag tree node for rename, record as Matched in `{outcomes}` with note "renamed: {existingName} → {providedName}". If rename is actioned: re-call `intappCommon:get_party`, rebuild `{candidatePool}`
+- **B (all)** → for every conflict, flag tree node for rename, record as Matched in `{outcomes}` with note "renamed: {existingName} → {providedName}". Then call `IntappJungle:editTree` with an `edit` mutation for each renamed node (see Appendix H). Batch all renames into a single call. After the editTree call completes: re-call `intappCommon:get_party`, rebuild `{candidatePool}`.
 - **C (all)** → for every conflict, drop the provided ID from `{providedList}` (entity proceeds to scoring as a name-only entry). No outcome recorded yet — scoring will determine bucket.
 - **Per-row decisions (e.g., "1A, 2C, 3B")** → apply mixed resolutions
 
@@ -564,9 +564,9 @@ Then prompt:
 
 On decision:
 
-- **ADD ALL** → for each entity, perform immediate parent check (Appendix D), then call `intappCommon:create_party` (Appendix E). Record as Created in `{outcomes}`.
+- **ADD ALL** → for each entity, perform immediate parent check (Appendix D), then call `intappCommon:create_party` (Appendix E). Record as Created in `{outcomes}`. After all `create_party` calls complete, call `IntappJungle:editTree` once with a batched `add` array covering all newly created entities (see Appendix H). Use `INTAPP-{partyId}` as each node's `id` and the resolved parent's external ID (or `INTAPP-{partyId}` if the parent was also created this session) as `idParent`.
 - **SKIP ALL** → record all as `Unresolved` in `{outcomes}`.
-- **Row letters listed** → add those; record the rest as `Unresolved` in `{outcomes}`.
+- **Row letters listed** → add those; record the rest as `Unresolved` in `{outcomes}`. After all `create_party` calls complete, call `IntappJungle:editTree` once with a batched `add` array covering the added entities (see Appendix H).
 
 **Exit check:** All rows in `{noMatches}` have an outcome of Created or Unresolved in `{outcomes}`.
 
@@ -634,7 +634,7 @@ For Option A, the parent node always shows the matched entity's actual existing 
 
 > │ Type **`A`**, **`B`** or **`SKIP`**
 
-Any Create or Add decision triggers the immediate parent check from Appendix D.
+Any Create or Add decision triggers the immediate parent check from Appendix D. After `create_party` completes, call `IntappJungle:editTree` with an `add` mutation for the new node (see Appendix H). If the parent was also created this session, reference it by `INTAPP-{partyId}` as `idParent`.
 
 Record each outcome in `{outcomes}` before rendering the next card.
 
@@ -812,7 +812,7 @@ If the parent needs to be created, apply this check recursively to the parent be
 
 - For person entities (board members, UBOs) → `"partyType": "Person"`
 - If party type is uncertain → call `my-custom-intapp-mcp4:get_party_types` first and present options to the user
-- Record returned `id` and `partyId` in `{outcomes}`
+- Record returned `id` and `partyId` in `{outcomes}`. Set `treeNodeId` = `INTAPP-{partyId}` in `{outcomes}` for use as the node's external ID in subsequent `editTree` calls.
 
 -----
 
@@ -881,3 +881,90 @@ Build the nodes payload for the `chat-tree-display` skill from `{outcomes}` to s
 Roots are entities whose provided parent is null or whose parent is not itself in the Matched/Created set — they render at the top level.
 
 Pass the full nodes array to the `chat-tree-display` skill and render the result.
+
+-----
+
+## Appendix H: editTree — Corporate Tree Mutation
+
+Use `IntappJungle:editTree` to insert, rename, or delete nodes in a corporate tree after a party has been created via `create_party`.
+
+### Required Parameters
+
+| Parameter | Value |
+|---|---|
+| `rootId` | External ID of the root company (e.g. DUNS `042006515`). Always the tree root — not an Intapp party ID. |
+| `providerType` | One of: `DunAndBradstreet` \| `BureauVanDijk` \| `SPGlobal` |
+
+### Optional Mutation Arrays
+
+Omit any array that has no operations. All three may be included in a single call.
+
+| Array | Operation | Required fields |
+|---|---|---|
+| `add` | Insert new nodes | `id`, `idParent`, `name` |
+| `edit` | Rename existing nodes by external ID | `id`, `name` |
+| `delete` | Remove a node and its entire subtree | `id` |
+
+**Execution order within a single call:** deletions run first, then edits, then additions.
+
+### ID Conventions for New Nodes
+
+New nodes added via `create_party` have no provider external ID. Use the pattern `INTAPP-{partyId}` as the node's `id` in `editTree`, where `{partyId}` is the integer ID returned by `create_party`.
+
+Store this generated ID as `treeNodeId` in `{outcomes}` alongside `resolvedId`.
+
+### Determining rootId and providerType
+
+1. Inspect `{candidatePool}` for the anchor party's primary tree root (the node with `parentId = null` in the Tree source).
+2. The root node's `id` field is its `externalId` — use this as `rootId`.
+3. `providerType` is derived from `{provider}` (the `externalDataProvider` field from the `get_party` response):
+
+| externalDataProvider | providerType |
+|---|---|
+| `DunBradstreet` | `DunAndBradstreet` |
+| `BureauVanDijk` | `BureauVanDijk` |
+| `SPGlobal` | `SPGlobal` |
+| `None` or blank | Use `DunAndBradstreet` as default; note in outcomes |
+
+If the party has multiple trees, always target the primary tree (first entry in `corporateTrees`).
+
+### Batching Rule
+
+All nodes being added in a single step (Step 6 ADD ALL, or multiple parents + children in Step 7) MUST be submitted in a single `editTree` call, not one call per node. The `add` array supports forward references: a node can reference another node in the same `add` array as its `idParent` — ordering is handled automatically.
+
+### Example — Add Two Nodes
+
+```json
+{
+  "rootId": "042006515",
+  "providerType": "DunAndBradstreet",
+  "add": [
+    { "id": "INTAPP-9001", "idParent": "042006515", "name": "NewCo Oilfield Services Ltd" },
+    { "id": "INTAPP-9002", "idParent": "INTAPP-9001", "name": "NewCo Sub LLC" }
+  ]
+}
+```
+
+### Example — Rename a Node
+
+```json
+{
+  "rootId": "042006515",
+  "providerType": "DunAndBradstreet",
+  "edit": [
+    { "id": "042006516", "name": "Innospec Active Chemicals LLC (Renamed)" }
+  ]
+}
+```
+
+### Error Handling
+
+If `editTree` returns an error:
+
+- Record the failure in `{outcomes}` as `Created — tree insert failed` with the error message in Notes.
+- Do not halt the playbook. Continue to the next entity.
+- Surface a warning in the Step COMPLETE report header:
+
+```
+⚠ {n} tree insert(s) failed — parties were created but not linked in the tree. See Notes column.
+```
