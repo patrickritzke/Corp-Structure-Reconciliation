@@ -41,8 +41,8 @@ Reconciles a client-provided corporate entity list against an Intapp party's Cor
 - `{candidatePool}` — flat array of all existing nodes extracted in Step 1: `{ id, name, parentId, source }`
 - `{providedList}` — parsed array of user-supplied entities: `{ name, id?, parentName?, parentId? }`
 - `{idConflicts}` — pre-scoring: entities where provided ID exists in tree AND existing name ≠ provided name
-- `{signalTable}` — output of `corp-tree-match`: one signal row per provided entity (after ID conflicts resolved)
-- `{bucketTable}` — output of `corp-tree-interpret`: signal rows + Bucket + Interpretation columns
+- `{signalTable}` — output of `corp-tree-compare-score`: one signal row per provided entity (after ID conflicts resolved)
+- `{bucketTable}` — `{signalTable}` with Bucket column added after inline classification (Appendix C)
 
 #### Session State
 
