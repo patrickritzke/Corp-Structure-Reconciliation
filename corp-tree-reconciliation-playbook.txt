@@ -77,7 +77,7 @@ Reconciles a client-provided corporate entity list against an Intapp party's Cor
 ### Phases
 
 ```
-Fetch & Parse  ›  ID Conflicts  ›  Match & Score  ›  Reconcile  ›  Report
+Find Tree  ›  Upload/Research  ›  Reconcile  ›  Judgement Calls  ›  Report
 ```
 
 ### State Icons
@@ -92,11 +92,11 @@ Fetch & Parse  ›  ID Conflicts  ›  Match & Score  ›  Reconcile  ›  Repor
 
 |Phase        |Emoji|
 |-------------|-----|
-|Fetch & Parse|🔍    |
-|ID Conflicts |🔑    |
-|Match & Score|⚙️    |
-|Reconcile    |✏️    |
-|Report       |📋    |
+|Find Tree       |🔍 |
+|Upload/Research |📥 |
+|Reconcile       |✏️ |
+|Judgement Calls |⚖️ |
+|Report          |📋 |
 
 ### Rendering Contract
 
@@ -123,15 +123,15 @@ Pure processing (no content):
 ### Example — Pure Processing (Step 4)
 
 ```
-☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ▣ **Match & Score**  ›  ☐ Reconcile  ›  ☐ Report
+☑ **Find Tree**  ›  ▣ **Upload/Research**  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report
 
-⚙️ *Comparing provided information against corporate tree…*
+📥 *Comparing provided information against corporate tree…*
 ```
 
 ### Example — Display + Prompt (Step 5)
 
 ```
-☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ▣ **Reconcile**  ›  ☐ Report
+☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ▣ **Reconcile**  ›  ☐ Judgement Calls  ›  ☐ Report
 
 ✏️ *We found 14 strong matches to existing names in the corporate tree.*
 
@@ -152,7 +152,7 @@ Pure processing (no content):
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Processing → Display → User Prompt                                                       |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔍 *Fetching party {partyId}…*                                                            |
 |**Notification Rule**|No output during fetch. Render prompt once party is loaded.                              |
 
@@ -191,7 +191,7 @@ On user decision:
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Processing                                                                               |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔍 *Waiting for input…*                                                                   |
 |**Notification Rule**|No output except Progress Header + Status                                                |
 
@@ -211,7 +211,7 @@ On user decision:
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Processing → Display → User Prompt                                                       |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔍 *Identifying available public sources for {partyName}…*                                |
 |**Notification Rule**|No output during research. Render source list once complete.                             |
 
@@ -228,7 +228,7 @@ On user decision:
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Processing                                                                               |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔍 *Fetching {n} source(s)…*                                                              |
 |**Notification Rule**|No output except Progress Header + Status                                                |
 
@@ -250,7 +250,7 @@ Set `{researchRaw}` — all extracted entities before deduplication.
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Processing                                                                               |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔍 *Merging sources…*                                                                     |
 |**Notification Rule**|No output except Progress Header + Status                                                |
 
@@ -271,7 +271,7 @@ Set `{researchMerged}` — deduplicated list with `{ name, parentName, sources[]
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Display → User Prompt                                                                    |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔍 *{n} entities found across {m} source(s). Review assumptions before proceeding.*       |
 |**Notification Rule**|Render summary then assumptions then prompt                                              |
 
@@ -387,7 +387,7 @@ On **RESTART** → return to Step 0 input method prompt.
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Processing                                                                               |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔍 *Parsing provided entity list…*                                                        |
 |**Notification Rule**|No output except Progress Header + Status                                                |
 
@@ -406,7 +406,7 @@ If input came from research, each entry in `{providedList}` carries additional m
 |Field                |Value                                                                                        |
 |---------------------|---------------------------------------------------------------------------------------------|
 |**Type**             |Display → User Prompt                                                                        |
-|**Progress Header**  |`☑ **Fetch & Parse**  ›  ▣ **ID Conflicts**  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`☑ **Find Tree**  ›  ▣ **Upload/Research**  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔑 *We found {n} ID(s) in your list that exist in the tree with different names.*             |
 |**Notification Rule**|Render conflict table then prompt                                                            |
 
@@ -454,7 +454,7 @@ On user decision:
 |Field                |Value                                                                                        |
 |---------------------|---------------------------------------------------------------------------------------------|
 |**Type**             |Processing                                                                                   |
-|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ▣ **Match & Score**  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`☑ **Find Tree**  ›  ▣ **Upload/Research**  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |⚙️ *Comparing provided information against corporate tree…*                                   |
 |**Notification Rule**|No output except Progress Header + Status                                                    |
 
@@ -474,7 +474,7 @@ On user decision:
 |Field                |Value                                                                                            |
 |---------------------|-------------------------------------------------------------------------------------------------|
 |**Type**             |Display → User Prompt                                                                            |
-|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ▣ **Reconcile**  ›  ☐ Report`|
+|**Progress Header**  |`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ▣ **Reconcile**  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |✏️ *We found {n} strong matches to existing names in the corporate tree.*                         |
 |**Notification Rule**|Render match table then prompt                                                                   |
 
@@ -508,7 +508,7 @@ Then prompt:
 |Field                |Value                                                                                            |
 |---------------------|-------------------------------------------------------------------------------------------------|
 |**Type**             |Display → User Prompt                                                                            |
-|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ▣ **Reconcile**  ›  ☐ Report`|
+|**Progress Header**  |`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ▣ **Reconcile**  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |✏️ *{n} name(s) not found in the corporate tree.*                                                 |
 |**Notification Rule**|Render no-match table then prompt                                                                |
 
@@ -549,8 +549,8 @@ On decision:
 |Field                |Value                                                                                            |
 |---------------------|-------------------------------------------------------------------------------------------------|
 |**Type**             |Display → User Prompt                                                                            |
-|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ▣ **Reconcile**  ›  ☐ Report`|
-|**Status**           |✏️ *Judgement Call {i} of {n}*                                                                    |
+|**Progress Header**  |`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ☑ **Reconcile**  ›  ▣ **Judgement Calls**  ›  ☐ Report`|
+|**Status**           |⚖️ *Judgement Call {i} of {n}*                                                                    |
 |**Notification Rule**|One prompt card per entity; render next only after current is resolved                           |
 
 If `{judgements}` is empty → **GO TO** Step COMPLETE.
@@ -619,7 +619,7 @@ Record each outcome in `{outcomes}` before rendering the next card.
 |Field              |Value                                                                                    |
 |-------------------|-----------------------------------------------------------------------------------------|
 |**Type**           |Processing → Display                                                                     |
-|**Progress Header**|`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ☑ **Reconcile**  ›  ▣ **Report**`|
+|**Progress Header**|`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ☑ **Reconcile**  ›  ☑ **Judgement Calls**  ›  ▣ **Report**`|
 |**Status**         |📋 *Generating reconciliation report…*                                                    |
 
 Render report header:
