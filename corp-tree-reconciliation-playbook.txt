@@ -25,8 +25,7 @@ Reconciles a client-provided corporate entity list against an Intapp party's Cor
 ### Hardcoded
 
 - `{threshold}` = `0.95` — minimum name similarity score for auto-accept. Applies to both entity name and parent name comparisons. Configurable per run.
-- `{matchSkill}` = `corp-tree-match` — scoring skill
-- `{interpretSkill}` = `corp-tree-interpret` — classification skill
+- `{scoreSkill}` = `corp-tree-compare-score` — scoring skill (returns six signals per entity; classification applied inline per Appendix C)
 
 ### Per-Run Variables
 
@@ -460,9 +459,11 @@ On user decision:
 |**Status**           |⚙️ *Comparing provided information against corporate tree…*                                   |
 |**Notification Rule**|No output except Progress Header + Status                                                    |
 
-- Run `corp-tree-match` with `{candidatePool}` and `{providedList}` (excluding entities already resolved in Step 3) → set `{signalTable}`
-- Run `corp-tree-interpret --threshold {threshold}` on `{signalTable}` → set `{bucketTable}`
-- Partition `{bucketTable}` into `{matches}`, `{noMatches}`, `{judgements}` (see Appendix C)
+- Bootstrap `corp-tree-compare-score` (write score.py to disk if not already present — see skill SKILL.md)
+- For each entity in `{providedList}` not already resolved in Step 3, run `corp-tree-compare-score` with `{candidatePool}` → collect one signal row per entity into `{signalTable}`
+  - Pass `parentName` only if the provided entity has an explicit parent. For flat lists (no parent column), omit `parentName` entirely.
+- Apply classification rules (Appendix C) to `{signalTable}` → set `{bucketTable}`
+- Partition `{bucketTable}` into `{matches}`, `{noMatches}`, `{judgements}`
 
 **Exit check:** Every unresolved row in `{providedList}` has exactly one corresponding row in `{bucketTable}`.
 
@@ -738,7 +739,41 @@ Skip any section that is null.
 
 ## Appendix C: Bucket Partitioning Rules
 
-After running `corp-tree-interpret`, partition `{bucketTable}` as follows:
+After running `corp-tree-compare-score` for each entity, classify using the following rules.
+
+### Inputs per entity
+
+| Signal | Source |
+|---|---|
+| `entity_score` | `strongest_entity_match_score` |
+| `entity_match_parent_id` | `strongest_entity_match_parent_id` |
+| `entity_match_parent_id_score` | `strongest_entity_match_parent_id_score` |
+| `parent_match_id` | `strongest_parent_match_id` |
+| `parent_provided` | `true` if `provided.parentName` was non-empty; `false` for flat lists |
+
+### Classification
+
+**When `parent_provided = true`:**
+
+```
+parent_agrees = (entity_match_parent_id == parent_match_id) OR entity_match_parent_id_score >= {threshold}
+entity_score >= {threshold} AND parent_agrees      → Match
+entity_score >= {threshold} AND NOT parent_agrees  → Judgement
+0.60 <= entity_score < {threshold}                 → Judgement
+entity_score < 0.60                                → No Match
+```
+
+**When `parent_provided = false` (flat list — no parent column):**
+
+```
+entity_score >= {threshold}          → Match
+0.60 <= entity_score < {threshold}   → Judgement
+entity_score < 0.60                  → No Match
+```
+
+The parent-mismatch Judgement rule only fires when a parent was explicitly provided. Flat lists (e.g. EDGAR EX-21.1 with all parents assumed as root) do not trigger it — an assumed root is not a real parent signal.
+
+### Partition
 
 **`{matches}`** — rows where `Bucket = Match`
 
