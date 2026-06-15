@@ -25,7 +25,7 @@ Reconciles a client-provided corporate entity list against an Intapp party's Cor
 ### Hardcoded
 
 - `{threshold}` = `0.95` — minimum name similarity score for auto-accept. Applies to both entity name and parent name comparisons. Configurable per run.
-- `{scoreSkill}` = `corp-tree-compare-score` — scoring skill (returns six signals per entity; classification applied inline per Appendix C)
+- `{scoreSkill}` = `corp-tree-compare-score` — scoring skill (returns signals, `parent_provided`, `reconciliation`, and `reconciliation_note` per entity; classification is performed by the skill)
 
 ### Per-Run Variables
 
@@ -41,14 +41,13 @@ Reconciles a client-provided corporate entity list against an Intapp party's Cor
 - `{candidatePool}` — flat array of all existing nodes extracted in Step 1: `{ id, name, parentId, source }`
 - `{providedList}` — parsed array of user-supplied entities: `{ name, id?, parentName?, parentId? }`
 - `{idConflicts}` — pre-scoring: entities where provided ID exists in tree AND existing name ≠ provided name
-- `{signalTable}` — output of `corp-tree-compare-score`: one signal row per provided entity (after ID conflicts resolved)
-- `{bucketTable}` — `{signalTable}` with Bucket column added after inline classification (Appendix C)
+- `{signalTable}` — output of `corp-tree-compare-score`: one row per provided entity containing signals, `parent_provided`, `reconciliation`, and `reconciliation_note` (after ID conflicts resolved)
 
 #### Session State
 
-- `{matches}` — rows with Bucket = Match
-- `{noMatches}` — rows with Bucket = No Match
-- `{judgements}` — rows with Bucket = Judgement
+- `{matches}` — rows from `{signalTable}` where `reconciliation` = `Match`
+- `{noMatches}` — rows from `{signalTable}` where `reconciliation` = `No Match`
+- `{judgements}` — rows from `{signalTable}` where `reconciliation` = `Judgement`
 - `{outcomes}` — map of `providedName → { resolvedId, outcome, parentMatch, notes }` built throughout Phase 1
 
 -----
@@ -460,12 +459,13 @@ On user decision:
 |**Notification Rule**|No output except Progress Header + Status                                                    |
 
 - Bootstrap `corp-tree-compare-score` (write score.py to disk if not already present — see skill SKILL.md)
-- For each entity in `{providedList}` not already resolved in Step 3, run `corp-tree-compare-score` with `{candidatePool}` → collect one signal row per entity into `{signalTable}`
+- For each entity in `{providedList}` not already resolved in Step 3, run `corp-tree-compare-score` with `{candidatePool}` → collect one row per entity into `{signalTable}`
   - Pass `parentName` only if the provided entity has an explicit parent. For flat lists (no parent column), omit `parentName` entirely.
-- Apply classification rules (Appendix C) to `{signalTable}` → set `{bucketTable}`
-- Partition `{bucketTable}` into `{matches}`, `{noMatches}`, `{judgements}`
+  - The skill returns `reconciliation` and `reconciliation_note` directly — no inline classification is required.
+- Partition `{signalTable}` into `{matches}`, `{noMatches}`, `{judgements}` by reading the `reconciliation` field on each row.
+- For `No Match` rows where `parent_provided = true`: use `strongest_parent_match_id` as the resolved add-under parent. The entity's own tree parent signal is disregarded for low entity matches.
 
-**Exit check:** Every unresolved row in `{providedList}` has exactly one corresponding row in `{bucketTable}`.
+**Exit check:** Every unresolved row in `{providedList}` has exactly one corresponding row in `{signalTable}`.
 
 -----
 
@@ -739,47 +739,39 @@ Skip any section that is null.
 
 ## Appendix C: Bucket Partitioning Rules
 
-After running `corp-tree-compare-score` for each entity, classify using the following rules.
-
-### Inputs per entity
-
-| Signal | Source |
-|---|---|
-| `entity_score` | `strongest_entity_match_score` |
-| `entity_match_parent_id` | `strongest_entity_match_parent_id` |
-| `entity_match_parent_id_score` | `strongest_entity_match_parent_id_score` |
-| `parent_match_id` | `strongest_parent_match_id` |
-| `parent_provided` | `true` if `provided.parentName` was non-empty; `false` for flat lists |
-
-### Classification
-
-**When `parent_provided = true`:**
-
-```
-parent_agrees = (entity_match_parent_id == parent_match_id) OR entity_match_parent_id_score >= {threshold}
-entity_score >= {threshold} AND parent_agrees      → Match
-entity_score >= {threshold} AND NOT parent_agrees  → Judgement
-0.60 <= entity_score < {threshold}                 → Judgement
-entity_score < 0.60                                → No Match
-```
-
-**When `parent_provided = false` (flat list — no parent column):**
-
-```
-entity_score >= {threshold}          → Match
-0.60 <= entity_score < {threshold}   → Judgement
-entity_score < 0.60                  → No Match
-```
-
-The parent-mismatch Judgement rule only fires when a parent was explicitly provided. Flat lists (e.g. EDGAR EX-21.1 with all parents assumed as root) do not trigger it — an assumed root is not a real parent signal.
+Classification is performed by the `corp-tree-compare-score` skill. Each row in `{signalTable}` includes a `reconciliation` field (`Match` / `Judgement` / `No Match`) and a `reconciliation_note` describing the basis for the classification.
 
 ### Partition
 
-**`{matches}`** — rows where `Bucket = Match`
+**`{matches}`** — rows where `reconciliation` = `Match`
 
-**`{noMatches}`** — rows where `Bucket = No Match`
+**`{noMatches}`** — rows where `reconciliation` = `No Match`
 
-**`{judgements}`** — rows where `Bucket = Judgement`
+**`{judgements}`** — rows where `reconciliation` = `Judgement`
+
+### reconciliation_note reference
+
+| Note | Condition |
+|---|---|
+| `Strong entity match. No parent provided.` | entity ≥ 95%, flat list |
+| `Moderate entity match. No parent provided.` | 60–94%, flat list |
+| `Low entity match. No parent provided.` | < 60%, flat list |
+| `Strong entity match. Strong parent match.` | entity ≥ 95%, parent agrees |
+| `Strong entity match. Discrepancy parent match.` | entity ≥ 95%, parent strong but points to different node |
+| `Strong entity match. Low parent match.` | entity ≥ 95%, parent weak or not found |
+| `Moderate entity match. Strong parent match.` | 60–94%, parent agrees |
+| `Moderate entity match. Discrepancy parent match.` | 60–94%, parent strong but points to different node |
+| `Moderate entity match. Low parent match.` | 60–94%, parent weak or not found |
+| `Low entity match.` | < 60%, parent provided — add under `strongest_parent_match_id` |
+| `No candidates in pool.` | candidate pool is empty |
+
+### parent_agrees logic (for reference only — evaluated inside the skill)
+
+```
+parent_agrees = (entity_match_parent_id is not None AND entity_match_parent_id == strongest_parent_match_id) OR (entity_match_parent_id_score is not None AND entity_match_parent_id_score >= threshold)
+```
+
+If both conditions are unevaluable (both null), `parent_agrees = false`.
 
 Note: ID conflicts are resolved in Step 3 before scoring runs. Any entity surviving Step 3 with a resolved ID and matching name is already recorded as Matched in `{outcomes}` and excluded from scoring input.
 
