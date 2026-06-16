@@ -886,13 +886,24 @@ Deduplicate by `id`. Preserve `parentId` links from `{candidatePool}` so the tre
 
 For each option, start with the shared skeleton and apply icons only to nodes relevant to that option. All other nodes in the skeleton render with `iconAft: null` and `iconAftSuffix: null`.
 
+**Score field reference — use exactly these fields, never substitute one for the other:**
+
+| Option | Scored node | Score field from `corp-tree-compare-score` output |
+|---|---|---|
+| A | `{treeParentId}` (`strongest_entity_match_parent_id`) | `strongest_entity_match_parent_id_score` — similarity of provided parent name against the matched entity's *actual tree parent* |
+| B | `{resolvedParentId}` (`strongest_parent_match_id`) | `strongest_parent_match_score` — similarity of provided parent name against the best pool candidate for that parent |
+
+These two fields measure different comparisons and will often differ. Never use `strongest_parent_match_score` for Option A or `strongest_entity_match_parent_id_score` for Option B.
+
 #### Option A — Match existing entity
 
 | Node | iconAft | iconAftSuffix |
 |---|---|---|
 | `{treeParentId}` (direct parent of matched entity) | icon for `strongest_entity_match_parent_id_score` | `{strongest_entity_match_parent_id_score * 100}%` — only if a parent was provided in input; otherwise `null`/`null` |
-| `{topNameMatchId}` (matched entity) | icon for `{entityScore}` | `{entityScore}%` |
+| `{topNameMatchId}` (matched entity) | icon for `strongest_entity_match_score` | `{strongest_entity_match_score * 100}%` |
 | All other skeleton nodes | `null` | `null` |
+
+The new entity is **not** inserted — Option A matches an existing node.
 
 #### Option B — Add new entity
 
@@ -900,13 +911,6 @@ For each option, start with the shared skeleton and apply icons only to nodes re
 |---|---|---|
 | `{resolvedParentId}` (provided parent match) | icon for `strongest_parent_match_score` | `{strongest_parent_match_score * 100}%` |
 | All other skeleton nodes | `null` | `null` |
-
-**Score field reference — use exactly these fields, never substitute one for the other:**
-
-| Option | Scored node | Score field |
-|---|---|---|
-| A | `{treeParentId}` (`strongest_entity_match_parent_id`) | `strongest_entity_match_parent_id_score` |
-| B | `{resolvedParentId}` (`strongest_parent_match_id`) | `strongest_parent_match_score` |
 
 Insert one additional node for the new entity:
 
@@ -967,7 +971,7 @@ Shared skeleton nodes: Innospec Inc., Albemar Holdings, Teneo Securities LLC (17
 
 Option A — Match Existing Entity (Strong Match) under Existing Parent (keep tree placement):
 ```
-Innospec Inc. (042006515) 🔴 18%
+Innospec Inc. (042006515) 🔴 10%
     Albemar Holdings (custom-albemare)
     Teneo Securities LLC (1768) 🟢 100%
 ```
@@ -975,7 +979,7 @@ Innospec Inc. (042006515) 🔴 18%
 Option B — Add New Entity under Provided Parent (Low Match):
 ```
 Innospec Inc. (042006515)
-    Albemar Holdings (custom-albemare) 🟡 61%
+    Albemar Holdings (custom-albemare) 🔴 61%
         Teneo Securities LLC 🆕 Add New Entity
     Teneo Securities LLC (1768)
 ```
