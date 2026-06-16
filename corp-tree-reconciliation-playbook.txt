@@ -579,16 +579,17 @@ Render entity table:
 
 **Outcome values:** `Matched` / `Created (ID: {x})` / `Unresolved` / `Unresolved — parent not resolved` / `Matched — flagged for rename`
 
-Then render the reconciliation tree using the `chat-tree-display` skill. Build the nodes payload per **Appendix G** — include all Matched and Created entities only. Render the tree.
+Then render the reconciliation tree using the `chat-tree-display` skill. Build the nodes payload from `{providedList}` — include every provided entity regardless of outcome. Node construction:
 
-Then render the unresolved list:
+| Field | Value |
+|---|---|
+| `id` | `resolvedId` from `{outcomes}` if available; otherwise a slug of the provided name |
+| `name` | provided entity name |
+| `parentId` | `resolvedId` of the provided parent (from `{outcomes}`); `null` if no parent provided |
+| `iconAft` | 🟢 for Matched / 🆕 for Created / 🔴 for Unresolved or Unresolved — parent not resolved |
+| `iconAftSuffix` | `Reconciled as Match` / `Added` / `Not Reconciled` |
 
-**Not matched or added:**
-- {providedName} — Unresolved
-- {providedName} — Unresolved (parent not resolved)
-- …
-
-If no unresolved entities, omit this section entirely.
+Roots are entities with no provided parent or whose provided parent is not itself in `{providedList}`.
 
 -----
 
@@ -972,24 +973,27 @@ Innospec Inc. (042006515)
 
 ## Appendix G: Report Tree Nodes
 
-Build the nodes payload for the `chat-tree-display` skill from `{outcomes}` to show all Matched and Created entities.
+Build the nodes payload for the `tree-display` skill from `{providedList}` and `{outcomes}`.
 
-**Include:** every entity with outcome Matched or Created.
-
-**Exclude:** Unresolved and Unresolved — parent not resolved.
+**Include:** every entity in `{providedList}`.
 
 ### Node construction per entity
 
 | Field | Value |
 |---|---|
-| `id` | `resolvedId` from `{outcomes}` |
-| `name` | matched or created entity name |
-| `parentId` | resolved ID of provided parent (from `{outcomes}`); `null` if no parent or parent not in outcomes |
-| `iconBef` | `null` |
-| `iconAft` | 🟢 for Matched / 🆕 for Created |
-| `iconAftSuffix` | match score (e.g. `100%`) for Matched / `Add New Entity` for Created |
+| `id` | `resolvedId` from `{outcomes}` if available; otherwise a slug of the provided name (e.g. `slug-gazprom-logistics-inc`) |
+| `name` | provided entity name |
+| `parentId` | `resolvedId` of the provided parent entity (looked up via `{outcomes}`); `null` if no parent provided or parent not in `{providedList}` |
 
-Roots are entities whose provided parent is null or whose parent is not itself in the Matched/Created set — they render at the top level.
+### Outcome icons
+
+| Outcome in `{outcomes}` | iconAft | iconAftSuffix |
+|---|---|---|
+| Matched | 🟢 | `Reconciled as Match` |
+| Created | 🆕 | `Added` |
+| Unresolved / Unresolved — parent not resolved | 🔴 | `Not Reconciled` |
+
+Roots are entities with no provided parent, or whose provided parent is not itself in `{providedList}`.
 
 Pass the full nodes array to the `chat-tree-display` skill and render the result.
 
