@@ -207,165 +207,103 @@ On user decision:
 
 -----
 
-### Research Step 1: Identify Sources
+### Research Step 1: Run create-tree-public-research
 
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Processing → Display → User Prompt                                                       |
 |**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
-|**Status**           |🔍 *Identifying available public sources for {partyName}…*                                |
-|**Notification Rule**|No output during research. Render source list once complete.                             |
+|**Status**           |🔍 *Researching public sources for {partyName}…*                                          |
+|**Notification Rule**|No output during research. Render summary and tree once skill returns.                   |
 
-- Search SEC EDGAR for the party's CIK and most recent 10-K filing, and for each ultimate owner (tree root) in `{candidatePool}`, check for an EX-21 or EX-21.1 exhibit (subsidiaries list).
-- Search Companies House if the party, its GUO, or any ultimate owner in `{candidatePool}` appears to be a UK-registered entity.
-- Search OpenCorporates for the party and each ultimate owner in `{candidatePool}` for any jurisdiction with available registry data.
-- Search the party's and each ultimate owner's investor relations page and most recent annual report for subsidiary or structure disclosures.
-- Do not search sources that require authentication or are behind paywalls.
+Invoke the `create-tree-public-research` skill with:
 
----
+```json
+{
+  "entity": "{partyName}",
+  "ultimateOwners": [ "{root.name}" ]
+}
+```
 
-### Research Step 2: Fetch and Parse Sources
+Where `ultimateOwners` is populated from the roots of `{candidatePool}` (all nodes with `parentId = null` and `source = "Tree"`). If `{candidatePool}` has no tree roots, use `{partyName}` as the sole entry.
 
-|Field                |Value                                                                                    |
-|---------------------|-----------------------------------------------------------------------------------------|
-|**Type**             |Processing                                                                               |
-|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
-|**Status**           |🔍 *Fetching {n} source(s)…*                                                              |
-|**Notification Rule**|No output except Progress Header + Status                                                |
+Set `{researchResult}` = the skill's full output (`nodes[]`, `additionalRoots[]`, `flagged[]`, `summary`).
 
-For each selected source:
+If `{researchResult.nodes}` is empty → render:
 
-- Fetch the document and extract all entity names, jurisdictions, and any available parent or relationship information.
-- Detect the structure: explicit hierarchy, flat list with parent column, flat list only.
-- If explicit hierarchy or parent column → extract `{ name, parentName }` pairs.
-- If flat list only → set `parentName` = name of the registrant (party GUO or root) with note "assumed direct subsidiary — source provides no hierarchy".
-- If structure is ambiguous (e.g. visual groupings, indented formatting without explicit labels) → treat as flat list. Do not infer hierarchy from visual layout.
-- Tag each entity with `{ source, confidence, filingDate?, assumedParent: true/false }`.
+> *No entities found in public sources for {partyName}.*
 
-Set `{researchRaw}` — all extracted entities before deduplication.
+Then prompt:
 
----
+> │ Type **`RESTART`** to return to input method selection
 
-### Research Step 3: Merge and Deduplicate
-
-|Field                |Value                                                                                    |
-|---------------------|-----------------------------------------------------------------------------------------|
-|**Type**             |Processing                                                                               |
-|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
-|**Status**           |🔍 *Merging sources…*                                                                     |
-|**Notification Rule**|No output except Progress Header + Status                                                |
-
-Merge `{researchRaw}` into a single deduplicated list:
-
-- Normalize all names (apply client stopwords if available; otherwise strip standard legal suffixes).
-- For each entity, find any existing entry in the merged list with normalized name similarity ≥ 99%.
-- **Match found:** merge sources into a combined `sources` array. If parent info conflicts across sources, retain the higher-confidence source's parent and note the conflict.
-- **No match:** add as new entry.
-- **Short normalized name (≤ 6 characters after stripping):** do not auto-merge — flag for manual review. Short names are high risk for false merges.
-
-Set `{researchMerged}` — deduplicated list with `{ name, parentName, sources[], confidence, assumedParent, notes? }`.
-
----
-
-### Research Step 4: Surface Assumptions and Confirm
-
-|Field                |Value                                                                                    |
-|---------------------|-----------------------------------------------------------------------------------------|
-|**Type**             |Display → User Prompt                                                                    |
-|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
-|**Status**           |🔍 *{n} entities found across {m} source(s). Review assumptions before proceeding.*       |
-|**Notification Rule**|Render summary then assumptions then prompt                                              |
-
-Render summary:
+Otherwise, render the research summary from `{researchResult.summary}`:
 
 ```
 Research Summary
 ─────────────────────────────────────────────
-Party:          {partyName}
-Sources fetched: {n}
-Total entities:  {n}
-Corroborated:    {n} (found in 2+ sources)
-Single source:   {n}
-Assumed parent:  {n} (no hierarchy provided by source)
-Flagged (short name, possible false merge): {n}
+Party:           {partyName}
+Sources searched: {summary.sourcesSearched joined with ", "}
+Sources with data: {summary.sourcesWithData joined with ", "}
+Most recent filing: {summary.mostRecentFilingDate}
+Total entities:  {summary.totalNodes}
+Assumed parent:  {summary.assumedParentCount} (no hierarchy provided by source)
+Additional roots found: {summary.additionalRootsFound}
+Flagged (short name, possible false merge): {summary.flaggedCount}
+Notes: {summary.notes}
 ```
 
-Render assumptions block (only if any assumedParent = true):
+Render assumptions block (only if `summary.assumedParentCount > 0`):
 
 ```
 Parent Assumptions
 ─────────────────────────────────────────────
-The following sources provided flat lists with no hierarchy. All entities from these sources have been assigned the default parent shown.
-
-SEC EDGAR EX-21.1 (FY2024)
-Default parent: Innospec Inc.
-Entities affected: {n}
-Note: Exhibit 21 lists significant subsidiaries only. Filing date 2025-02-19 — may not reflect current structure.
-
-[additional sources…]
+The following entities have been assigned a default parent because the source provided no hierarchy.
+Default parent is the ultimate owner under which they were found.
+Count: {summary.assumedParentCount}
+Note: assumed parents are marked * in the tree below.
 ```
 
-Render the research findings as a tree using the `chat-tree-display` skill. Build the nodes payload from `{researchMerged}` as follows.
+Render additional roots block (only if `summary.additionalRootsFound > 0`):
 
-**Temporary ID assignment (for tree construction only, not stored):**
-Assign each entity a temporary `id` = its normalized name. Set `parentId` = the normalized parent name if the parent exists in the node list; `null` if not found or is the assumed root.
+```
+Additional Roots Found
+─────────────────────────────────────────────
+Research identified parent(s) above the provided ultimate owner(s):
+{for each in additionalRoots: "  {name} ({source}) — {note}"}
+These have been added as roots above the provided GUO in the tree below.
+```
 
-**Node field rules:**
+Render the research findings as a tree using the `chat-tree-display` skill. Build the nodes payload from `{researchResult.nodes}` as follows:
 
 | Field | Value |
 |---|---|
-| `id` | temporary normalized name (tree construction only) |
-| `name` | entity name from `{researchMerged}` |
-| `parentId` | normalized parent name if parent in list; `null` otherwise |
+| `id` | `node.id` from skill output |
+| `name` | `node.name` |
+| `parentId` | `node.parentId` |
 | `iconBef` | `null` |
-| `iconAft` | `📋` for all research-sourced entities; `👤` for User Provided only |
-| `iconAftSuffix` | abbreviated source label(s) joined with ` + ` (e.g. `EDGAR + User`, `EDGAR`, `CH`) — append `*` if `assumedParent = true` |
-
-**Source abbreviations:**
-
-| Source | Abbreviation |
-|---|---|
-| SEC EDGAR | `EDGAR` |
-| Companies House | `CH` |
-| OpenCorporates | `OC` |
-| IR / Annual Report | `IR` |
-| User Provided | `User` |
+| `iconAft` | `📋` |
+| `iconAftSuffix` | `node.source` — append `*` if `node.assumedParent = true` |
 
 Render a legend beneath the tree only if any node has `assumedParent = true`:
 
 > `*` Parent assumed — source provided no hierarchy
 
-Example output:
-
-```
-Innospec Inc. 📋 EDGAR + User
-    Innospec Active Chemicals LLC 📋 EDGAR + User
-    Innospec Fuel Specialties LLC 📋 EDGAR*
-    Innospec Deutschland GmbH 📋 EDGAR*
-    Bachman Services, Inc. 📋 EDGAR + User
-    Independence Oilfield Chemicals, LLC 📋 EDGAR + User
-    BioSuite LLC 📋 EDGAR*
-    Strata Control Services, Inc. 📋 EDGAR*
-    Albemar Holdings 👤 User
-    Sigma Energy Partners LLC 👤 User
-    NewCo Oilfield Services Ltd 👤 User
-    Innospec Fuels LLC 👤 User
-
-* Parent assumed — source provided no hierarchy
-```
-
-Render flagged items (only if any short-name flags):
+Render flagged items (only if `{researchResult.flagged}` is non-empty):
 
 ```
 Manual Review Required
 ─────────────────────────────────────────────
-The following entities could not be safely auto-merged due to short normalized names. Review and confirm whether each is a duplicate or a distinct entity.
+The following entities could not be safely auto-merged due to short normalized names.
+Review and confirm whether each is a duplicate or a distinct entity.
 
-"Innospec Ltd" vs "Innospec Inc." — normalized to "innospec" in both cases
+{for each in flagged: "{name} — {reason}"}
 → Type SAME to merge | DIFFERENT to keep as separate entries
 ```
 
-Resolve any flagged items, then prompt:
+Resolve any flagged items inline before prompting.
+
+Then prompt:
 
 > │ Type **`PROCEED`** to use this as the provided list and begin reconciliation
 >
@@ -373,7 +311,7 @@ Resolve any flagged items, then prompt:
 >
 > │ Type **`RESTART`** to return to input method selection
 
-On **PROCEED** → set `{providedList}` = `{researchMerged}`. Set `{inputMethod}` details for report. **GO TO** Step 2.
+On **PROCEED** → convert `{researchResult.nodes}` into `{providedList}` as follows: for each node, create `{ name: node.name, parentName: name of node.parentId resolved from nodes[], source: node.source }`. Set `{inputMethod}` = `Research` for report. **GO TO** Step 2.
 
 On **EDIT** → allow the analyst to add, remove, or modify entries inline. Re-render summary. Re-prompt.
 
