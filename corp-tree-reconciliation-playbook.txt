@@ -890,18 +890,23 @@ For each option, start with the shared skeleton and apply icons only to nodes re
 
 | Node | iconAft | iconAftSuffix |
 |---|---|---|
-| `{treeParentId}` (direct parent of matched entity) | icon for `{parentScore}` | `{parentScore}%` — only if a parent was provided in input; otherwise `null`/`null` |
+| `{treeParentId}` (direct parent of matched entity) | icon for `strongest_entity_match_parent_id_score` | `{strongest_entity_match_parent_id_score * 100}%` — only if a parent was provided in input; otherwise `null`/`null` |
 | `{topNameMatchId}` (matched entity) | icon for `{entityScore}` | `{entityScore}%` |
 | All other skeleton nodes | `null` | `null` |
-
-The new entity is **not** inserted — Option A matches an existing node.
 
 #### Option B — Add new entity
 
 | Node | iconAft | iconAftSuffix |
 |---|---|---|
-| `{resolvedParentId}` (provided parent match) | icon for `{parentScore}` | `{parentScore}%` |
+| `{resolvedParentId}` (provided parent match) | icon for `strongest_parent_match_score` | `{strongest_parent_match_score * 100}%` |
 | All other skeleton nodes | `null` | `null` |
+
+**Score field reference — use exactly these fields, never substitute one for the other:**
+
+| Option | Scored node | Score field |
+|---|---|---|
+| A | `{treeParentId}` (`strongest_entity_match_parent_id`) | `strongest_entity_match_parent_id_score` |
+| B | `{resolvedParentId}` (`strongest_parent_match_id`) | `strongest_parent_match_score` |
 
 Insert one additional node for the new entity:
 
