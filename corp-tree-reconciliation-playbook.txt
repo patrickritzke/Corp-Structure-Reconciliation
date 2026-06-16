@@ -166,7 +166,8 @@ Pure processing (no content):
 Once loaded, render:
 
 > **{partyName}** (Party ID: {partyId})
-> Tree loaded — {n} nodes across {m} source(s): {sourcesLoaded}
+> Tree ({n} companies): {ultimateOwnerName} ({ultimateOwnerId})
+> *(repeat one row per tree root if multiple trees)*
 
 Then prompt:
 
@@ -475,7 +476,7 @@ On user decision:
 |---------------------|-------------------------------------------------------------------------------------------------|
 |**Type**             |Display → User Prompt                                                                            |
 |**Progress Header**  |`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ▣ **Reconcile**  ›  ☐ Judgement Calls  ›  ☐ Report`|
-|**Status**           |✏️ *We found {n} strong matches to existing names in the corporate tree.*                         |
+|**Status**           |✏️ *We found {n} strong matches to entities that already exist in the corporate tree.*             |
 |**Notification Rule**|Render match table then prompt                                                                   |
 
 If `{matches}` is empty → **GO TO** Step 6.
@@ -489,15 +490,15 @@ Render:
 
 Then prompt:
 
-> │ Type **`ACCEPT`** to confirm all matches (none will be added to the tree)
+> │ Type **`ACCEPT`** to confirm all matches — *we won't add any of these entities*
 
-> │ Type specific row letters to accept individually *(e.g., `ACCEPT A, D, F`)*
+> │ Type **`ACCEPT A, B, C`** to confirm specific matches — *we won't add these specific entities*
 
-> │ Type **`SKIP`** to reject all matches and add as new entities
+> │ Type **`REJECT`** to reject all matches — *we will add these in the next step*
 
 - **ACCEPT** → record all as Matched in `{outcomes}`. **GO TO** Step 6.
 - **Row letters listed (e.g., "ACCEPT B, F")** → record accepted rows as Matched in `{outcomes}`; move rejected rows into `{noMatches}` using each rejected row's matched existing entity's parent as the resolved `Add Under Parent`. **GO TO** Step 6.
-- **SKIP** → move all rows into `{noMatches}` using each matched existing entity's parent as the resolved `Add Under Parent`. **GO TO** Step 6.
+- **REJECT** → move all rows into `{noMatches}` using each matched existing entity's parent as the resolved `Add Under Parent`. **GO TO** Step 6.
 
 **Exit check:** All rows in `{matches}` have an outcome recorded in `{outcomes}` or have been moved to `{noMatches}`.
 
@@ -509,7 +510,7 @@ Then prompt:
 |---------------------|-------------------------------------------------------------------------------------------------|
 |**Type**             |Display → User Prompt                                                                            |
 |**Progress Header**  |`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ▣ **Reconcile**  ›  ☐ Judgement Calls  ›  ☐ Report`|
-|**Status**           |✏️ *{n} name(s) not found in the corporate tree.*                                                 |
+|**Status**           |✏️ *We found {n} entities with no clear matches in the existing corporate tree.*                   |
 |**Notification Rule**|Render no-match table then prompt                                                                |
 
 If `{noMatches}` is empty → **GO TO** Step 7.
@@ -528,17 +529,17 @@ Render:
 
 Then prompt:
 
-> │ Type **`ADD ALL`** to add all entities to the tree
+> │ Type **`ADD`** to add all entities to the tree
 
-> │ Type **`SKIP ALL`** to skip all, no changes made
+> │ Type **`ADD A, B, C`** to add specific entities to the tree
 
-> │ Type specific row letters to add individually, skipping the rest *(e.g., `A, C`)*
+> │ Type **`SKIP`** to move on — *we won't add anything to the tree right now*
 
 On decision:
 
-- **ADD ALL** → for each entity, perform immediate parent check (Appendix D), then call `IntappJungle:editTree` (Appendix E) to add the entity to the tree. Record as Created in `{outcomes}`. Batch all entities being added into a single `editTree` call per Appendix E.
-- **SKIP ALL** → record all as `Unresolved` in `{outcomes}`.
-- **Row letters listed** → add those using `IntappJungle:editTree` (Appendix E); record the rest as `Unresolved` in `{outcomes}`.
+- **ADD** → for each entity, perform immediate parent check (Appendix D), then call `IntappJungle:editTree` (Appendix E) to add the entity to the tree. Record as Created in `{outcomes}`. Batch all entities being added into a single `editTree` call per Appendix E.
+- **SKIP** → record all as `Unresolved` in `{outcomes}`.
+- **ADD A, B, C (row letters listed)** → add those using `IntappJungle:editTree` (Appendix E); record the rest as `Unresolved` in `{outcomes}`.
 
 **Exit check:** All rows in `{noMatches}` have an outcome of Created or Unresolved in `{outcomes}`.
 
@@ -565,46 +566,34 @@ If `{judgements}` is empty → **GO TO** Step COMPLETE.
 
 If the entity has no provided parent, or the provided parent is not present in `{outcomes}` at all, skip this check.
 
-For each entity in `{judgements}`, render the card header table:
+For each entity in `{judgements}`, render the card as follows:
 
-|      |Provided Name       |Best Existing Match                  |Match Score   |
-|------|--------------------|-------------------------------------|--------------|
-|Entity|{providedName}      |{topNameMatch} ({topNameMatchId})    |{entityScore}%|
-|Parent|{providedParentName}|{topParentMatch} ({topParentMatchId})|{parentScore}%|
+**Card heading:**
 
-If no parent was provided, the Parent row shows `—` in Provided Name, `—` in Best Existing Match, and `—` in Match Score.
+> **Judgement Call {i} of {n}: {providedName}**
 
-Then render the curated options for the matching variant below. For each option, render the option label followed immediately by a `chat-tree-display` tree showing the result. Build the nodes payload per **Appendix F**, then render using the `chat-tree-display` skill.
+**Top tree (only if parent was provided):** Render a two-node `chat-tree-display` tree using the shared skeleton structure from Appendix F but with no icon annotations — showing provided parent → provided entity name as context.
 
-For Option A, the parent node always shows the matched entity's actual existing tree parent (`{treeParentId}`, `{treeParentName}`). Show `iconAft` and `iconAftSuffix` (match score against provided parent) on the parent node only if a parent was provided in the input. If no parent was provided, set `iconAft: null` and `iconAftSuffix: null` on the parent node.
+**Section divider** (`---`)
 
-**Moderate name match (entity score < threshold), parent corroborates:**
+**Options:** For each option, render the option label followed immediately by a `chat-tree-display` tree built per Appendix F.
 
-**Option A** — Match Existing Entity (Moderate Match) under Existing Parent (Strong Match)
-**Option B** — Add New Entity under Existing Parent (Strong Match)
+**Section divider** (`---`)
+
+**Prompt:**
 
 > │ Type **`A`**, **`B`** or **`SKIP`**
 
-**Strong name match (entity score ≥ threshold), parent not found or fuzzy:**
+**Option labels by reconciliation note:**
 
-**Option A** — Match Existing Entity (Strong Match) under Existing Parent (keep tree placement)
-**Option B** — Add New Entity under Provided Parent ({parentQuality})
-
-> │ Type **`A`**, **`B`** or **`SKIP`**
-
-**Strong name and parent matches, but relationship doesn't exist in tree:**
-
-**Option A** — Match Existing Entity (Strong Match) under Existing Parent ({existingParentQuality})
-**Option B** — Add New Entity under Provided Parent (Strong Match)
-
-> │ Type **`A`**, **`B`** or **`SKIP`**
-
-**No parent provided, moderate or low entity match:**
-
-**Option A** — Match Existing Entity ({entityQuality}) under Existing Parent (keep tree placement)
-**Option B** — Add New Entity under Existing Tree Root
-
-> │ Type **`A`**, **`B`** or **`SKIP`**
+| Reconciliation note | Option A label | Option B label |
+|---|---|---|
+| Moderate entity match. No parent provided. | **A** — Match to existing entity | **B** — Add as new entity |
+| Moderate entity match. Strong parent match. | **A** — Match to existing entity | **B** — Add as new entity |
+| Moderate entity match. Discrepancy parent match. | **A** — Match to existing entity (different parent) | **B** — Add as new entity under provided parent |
+| Moderate entity match. Low parent match. | **A** — Match to existing entity | **B** — Add as new entity under provided parent |
+| Strong entity match. Discrepancy parent match. | **A** — Match to existing entity (different parent) | **B** — Add as new entity under provided parent |
+| Strong entity match. Low parent match. | **A** — Match to existing entity (low parent match) | **B** — Add as new entity under provided parent |
 
 Any Create or Add decision triggers the immediate parent check from Appendix D. Call `IntappJungle:editTree` (Appendix E) to add the new node to the tree.
 
