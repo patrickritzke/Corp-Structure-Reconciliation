@@ -490,7 +490,7 @@ On decision:
 |**Type**             |Display → User Prompt                                                                            |
 |**Progress Header**  |`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ☑ **Reconcile**  ›  ▣ **Judgement Calls**  ›  ☐ Report`|
 |**Status**           |⚖️ *Judgement Call {i} of {n}*                                                                    |
-|**Notification Rule**|One prompt card per entity; render next only after current is resolved                           |
+|**Notification Rule**|Render Progress Header + Status once before the first card only. Subsequent cards omit the Progress Header and Status entirely — render the card content directly.|
 
 If `{judgements}` is empty → **GO TO** Step COMPLETE.
 
