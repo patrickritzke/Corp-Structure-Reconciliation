@@ -237,57 +237,34 @@ Then prompt:
 
 > │ Type **`RESTART`** to return to input method selection
 
-Otherwise, render the research summary from `{researchResult.summary}`:
+Otherwise, render the source coverage table.
 
-```
-Research Summary
-─────────────────────────────────────────────
-Party:           {partyName}
-Sources searched: {summary.sourcesSearched joined with ", "}
-Sources with data: {summary.sourcesWithData joined with ", "}
-Most recent filing: {summary.mostRecentFilingDate}
-Total entities:  {summary.totalNodes}
-Assumed parent:  {summary.assumedParentCount} (no hierarchy provided by source)
-Additional roots found: {summary.additionalRootsFound}
-Flagged (short name, possible false merge): {summary.flaggedCount}
-Notes: {summary.notes}
-```
+Rows — one per entity searched:
+- `{partyName} *(party)*`
+- One row per ultimate owner from `{candidatePool}` roots — labelled `*(ultimate parent)*`; if the ultimate owner is the same entity as the party, merge into a single row labelled `*(party / ultimate parent)*`
+- One row per entry in `{researchResult.additionalRoots}` — labelled `*(alternative root)*`; omit these rows entirely if `additionalRoots` is empty
 
-Render assumptions block (only if `summary.assumedParentCount > 0`):
+Columns — one per source actually searched this run, using the format `{Source Name} ({Code})`:
 
-```
-Parent Assumptions
-─────────────────────────────────────────────
-The following entities have been assigned a default parent because the source provided no hierarchy.
-Default parent is the ultimate owner under which they were found.
-Count: {summary.assumedParentCount}
-Note: assumed parents are marked * in the tree below.
-```
+| Source | Code |
+|---|---|
+| SEC EDGAR | E |
+| Companies House | C |
+| OpenCorporates | O |
+| Investor Relations | I |
 
-Render additional roots block (only if `summary.additionalRootsFound > 0`):
+Cells: `✅` if data was found for that entity from that source, `❌` if not.
 
-```
-Additional Roots Found
-─────────────────────────────────────────────
-Research identified parent(s) above the provided ultimate owner(s):
-{for each in additionalRoots: "  {name} ({source}) — {note}"}
-These have been added as roots above the provided GUO in the tree below.
-```
-
-Render the research findings as a tree using the `chat-tree-display` skill. Build the nodes payload from `{researchResult.nodes}` as follows:
+Then render **Constructed Tree** as a heading, followed by the tree using the `chat-tree-display` skill. Build the nodes payload from `{researchResult.nodes}` as follows:
 
 | Field | Value |
 |---|---|
-| `id` | `node.id` from skill output |
+| `id` | `node.id` from skill output if it is a real source-provided ID; otherwise `null` |
 | `name` | `node.name` |
 | `parentId` | `node.parentId` |
 | `iconBef` | `null` |
 | `iconAft` | `📋` |
-| `iconAftSuffix` | `node.source` — append `*` if `node.assumedParent = true` |
-
-Render a legend beneath the tree only if any node has `assumedParent = true`:
-
-> `*` Parent assumed — source provided no hierarchy
+| `iconAftSuffix` | source code(s) for this node in `({X})` format — comma-separated if multiple (e.g. `(E,C)`) |
 
 Render flagged items (only if `{researchResult.flagged}` is non-empty):
 
