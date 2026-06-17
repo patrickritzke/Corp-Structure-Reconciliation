@@ -212,7 +212,7 @@ On user decision:
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Processing → Display → User Prompt                                                       |
-|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
+|**Progress Header**  |`☑ **Find Tree**  ›  ▣ **Upload/Research**  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔍 *Researching public sources for {partyName}…*                                          |
 |**Notification Rule**|No output during research. Render summary and tree once skill returns.                   |
 
@@ -303,7 +303,7 @@ On **RESTART** → return to Step 0 input method prompt.
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Processing                                                                               |
-|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
+|**Progress Header**  |`☑ **Find Tree**  ›  ▣ **Upload/Research**  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔍 *Parsing provided entity list…*                                                        |
 |**Notification Rule**|No output except Progress Header + Status                                                |
 
@@ -370,7 +370,7 @@ On user decision:
 |Field                |Value                                                                                        |
 |---------------------|---------------------------------------------------------------------------------------------|
 |**Type**             |Processing                                                                                   |
-|**Progress Header**  |`☑ **Find Tree**  ›  ▣ **Upload/Research**  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
+|**Progress Header**  |`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ▣ **Reconcile**  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |⚙️ *Comparing provided information against corporate tree…*                                   |
 |**Notification Rule**|No output except Progress Header + Status                                                    |
 
