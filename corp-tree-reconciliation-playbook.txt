@@ -161,7 +161,7 @@ Pure processing (no content):
 - Flatten all non-null Corporate Structure sections into `{candidatePool}` (see Appendix A)
 - If `corporateTrees` is null or empty → **GO TO** Step END
 
-**Exit check:** `{candidatePool}` contains at least one node.
+**Exit check:** `{candidatePool}` contains at least one node. At least one node must have `parentId = null` (the tree root). If no root node is present, halt with: `⚠️ Exit check failed: candidate pool contains no root node — tree flattening incomplete.`
 
 Once loaded, render:
 
