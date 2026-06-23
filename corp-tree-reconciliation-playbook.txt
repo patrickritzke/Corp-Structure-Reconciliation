@@ -555,6 +555,100 @@ On decision:
 
 If `{judgements}` is empty → **GO TO** Step COMPLETE.
 
+-----
+
+#### Substep 7A: Moderate Matches
+
+|Field|Value|
+|---|---|
+|**Type**|Display → User Prompt|
+|**Progress Header**|`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ☑ **Reconcile**  ›  ▣ **Judgement Calls**  ›  ☐ Report`|
+|**Status**|⚖️ *{n} moderate name matches require your review.*|
+|**Notification Rule**|Render table then prompt. Skip substep entirely if no moderate-match judgements exist.|
+
+Collect all rows from `{judgements}` where `reconciliation_note` begins with `Moderate entity match.`. If none → skip to Substep 7B.
+
+Render:
+
+| | Provided Name | Potential Match (ID) | Score |
+|-|---|---|---|
+| A | {providedName} | {matchedName} ({matchedId}) | {score}% |
+| B | … | … | … |
+
+Then prompt:
+
+> │ Type **`MATCH`** to accept all as matches to existing entities — *we won't add any of these*
+>
+> │ Type **`MATCH A, C`** to accept specific rows as matches
+>
+> │ Type **`ADD`** to add all as new entities
+>
+> │ Type **`ADD A, C`** to add specific rows as new entities
+>
+> │ Type **`SKIP`** to defer all — *no action taken*
+>
+> │ Type **`REVIEW`** to step through these one by one
+
+On **MATCH (all)** → record all as Matched in `{outcomes}`.
+
+On **MATCH A, C (rows listed)** → record listed rows as Matched; remaining rows carry forward to one-by-one loop.
+
+On **ADD (all)** → run immediate parent check (Appendix D) and call `IntappJungle:editTree` (Appendix E) for each; record as Created in `{outcomes}`.
+
+On **ADD A, C (rows listed)** → add listed rows via `IntappJungle:editTree`; remaining rows carry forward to one-by-one loop.
+
+On **SKIP** → record all as Unresolved in `{outcomes}`.
+
+On **REVIEW** → carry all rows forward to the one-by-one loop.
+
+**Exit check:** All moderate-match rows either have an outcome recorded in `{outcomes}` or are queued for the one-by-one loop.
+
+-----
+
+#### Substep 7B: Strong Matches with Parent Discrepancy or Weak Parent Signal
+
+|Field|Value|
+|---|---|
+|**Type**|Display → User Prompt|
+|**Progress Header**|`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ☑ **Reconcile**  ›  ▣ **Judgement Calls**  ›  ☐ Report`|
+|**Status**|⚖️ *{n} strong name matches have a parent discrepancy or weak parent signal.*|
+|**Notification Rule**|Render table then prompt. Skip substep entirely if no qualifying strong-match judgements exist.|
+
+Collect all rows from `{judgements}` where `reconciliation_note` is `Strong entity match. Discrepancy parent match.` or `Strong entity match. Low parent match.` If none → skip to one-by-one loop.
+
+Render:
+
+| | Provided Name | Potential Match (ID) | Score | Existing Parent | Provided Parent |
+|-|---|---|---|---|---|
+| A | {providedName} | {matchedName} ({matchedId}) | {score}% | {existingParentName} ({existingParentId}) | {providedParentName} |
+| B | … | … | … | … | … |
+
+Then prompt:
+
+> │ Type **`A`** to accept all as matches — *keep existing tree placement*
+>
+> │ Type **`B`** to add all as new entities — *place under provided parent per source*
+>
+> │ Type **`SKIP`** to defer all — *no action taken*
+>
+> │ Type **`REVIEW`** to step through these one by one
+>
+> │ Type row-level decisions to resolve individually *(e.g., `1A, 2B, 3SKIP`)*
+
+On **A (all)** → record all as Matched in `{outcomes}` with note "existing placement preserved".
+
+On **B (all)** → run immediate parent check (Appendix D) and call `IntappJungle:editTree` (Appendix E) for each; record as Created in `{outcomes}`.
+
+On **SKIP** → record all as Unresolved in `{outcomes}`.
+
+On **REVIEW** → carry all rows forward to the one-by-one loop.
+
+On **row-level decisions** → apply per-row; any row not listed carries forward to the one-by-one loop.
+
+**Exit check:** All strong-discrepancy and strong-low-parent rows either have an outcome recorded in `{outcomes}` or are queued for the one-by-one loop.
+
+-----
+
 **Unresolved parent check:** Before rendering the card, check whether the entity's provided parent has outcome `Unresolved` in `{outcomes}`. If so, render:
 
 > ⚠ **[{providedParentName}]** was skipped and has not been added to the tree.
@@ -565,7 +659,7 @@ If `{judgements}` is empty → **GO TO** Step COMPLETE.
 
 If the entity has no provided parent, or the provided parent is not present in `{outcomes}` at all, skip this check.
 
-For each entity in `{judgements}`, render the card header table:
+For each entity in `{judgements}` not already resolved in Substeps 7A or 7B, render the card header table:
 
 |      |Provided Name       |Best Existing Match                  |Match Score   |
 |------|--------------------|-------------------------------------|--------------|
