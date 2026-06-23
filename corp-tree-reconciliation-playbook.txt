@@ -77,7 +77,7 @@ Reconciles a client-provided corporate entity list against an Intapp party's Cor
 ### Phases
 
 ```
-Fetch & Parse  ›  ID Conflicts  ›  Match & Score  ›  Reconcile  ›  Report
+Find Tree  ›  Upload/Research  ›  Reconcile  ›  Judgement Calls  ›  Report
 ```
 
 ### State Icons
@@ -92,11 +92,11 @@ Fetch & Parse  ›  ID Conflicts  ›  Match & Score  ›  Reconcile  ›  Repor
 
 |Phase        |Emoji|
 |-------------|-----|
-|Fetch & Parse|🔍    |
-|ID Conflicts |🔑    |
-|Match & Score|⚙️    |
-|Reconcile    |✏️    |
-|Report       |📋    |
+|Find Tree       |🔍 |
+|Upload/Research |📥 |
+|Reconcile       |✏️ |
+|Judgement Calls |⚖️ |
+|Report          |📋 |
 
 ### Rendering Contract
 
@@ -123,15 +123,15 @@ Pure processing (no content):
 ### Example — Pure Processing (Step 4)
 
 ```
-☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ▣ **Match & Score**  ›  ☐ Reconcile  ›  ☐ Report
+☑ **Find Tree**  ›  ▣ **Upload/Research**  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report
 
-⚙️ *Comparing provided information against corporate tree…*
+📥 *Comparing provided information against corporate tree…*
 ```
 
 ### Example — Display + Prompt (Step 5)
 
 ```
-☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ▣ **Reconcile**  ›  ☐ Report
+☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ▣ **Reconcile**  ›  ☐ Judgement Calls  ›  ☐ Report
 
 ✏️ *We found 14 strong matches to existing names in the corporate tree.*
 
@@ -152,7 +152,7 @@ Pure processing (no content):
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Processing → Display → User Prompt                                                       |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔍 *Fetching party {partyId}…*                                                            |
 |**Notification Rule**|No output during fetch. Render prompt once party is loaded.                              |
 
@@ -161,12 +161,13 @@ Pure processing (no content):
 - Flatten all non-null Corporate Structure sections into `{candidatePool}` (see Appendix A)
 - If `corporateTrees` is null or empty → **GO TO** Step END
 
-**Exit check:** `{candidatePool}` contains at least one node.
+**Exit check:** `{candidatePool}` contains at least one node. At least one node must have `parentId = null` (the tree root). If no root node is present, halt with: `⚠️ Exit check failed: candidate pool contains no root node — tree flattening incomplete.`
 
 Once loaded, render:
 
 > **{partyName}** (Party ID: {partyId})
-> Tree loaded — {n} nodes across {m} source(s): {sourcesLoaded}
+> Tree ({n} companies): {ultimateOwnerName} ({ultimateOwnerId})
+> *(repeat one row per tree root if multiple trees)*
 
 Then prompt:
 
@@ -191,7 +192,7 @@ On user decision:
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Processing                                                                               |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`▣ **Find Tree**  ›  ☐ Upload/Research  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔍 *Waiting for input…*                                                                   |
 |**Notification Rule**|No output except Progress Header + Status                                                |
 
@@ -206,165 +207,80 @@ On user decision:
 
 -----
 
-### Research Step 1: Identify Sources
+### Research Step 1: Run create-tree-public-research
 
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Processing → Display → User Prompt                                                       |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
-|**Status**           |🔍 *Identifying available public sources for {partyName}…*                                |
-|**Notification Rule**|No output during research. Render source list once complete.                             |
+|**Progress Header**  |`☑ **Find Tree**  ›  ▣ **Upload/Research**  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
+|**Status**           |🔍 *Researching public sources for {partyName}…*                                          |
+|**Notification Rule**|No output during research. Render source coverage table, then Constructed Tree heading and tree. No commentary, no notes, no explanatory prose before or after either block.                   |
 
-- Search SEC EDGAR for the party's CIK and most recent 10-K filing, and for each ultimate owner (tree root) in `{candidatePool}`, check for an EX-21 or EX-21.1 exhibit (subsidiaries list).
-- Search Companies House if the party, its GUO, or any ultimate owner in `{candidatePool}` appears to be a UK-registered entity.
-- Search OpenCorporates for the party and each ultimate owner in `{candidatePool}` for any jurisdiction with available registry data.
-- Search the party's and each ultimate owner's investor relations page and most recent annual report for subsidiary or structure disclosures.
-- Do not search sources that require authentication or are behind paywalls.
+Invoke the `create-tree-public-research` skill with:
 
----
-
-### Research Step 2: Fetch and Parse Sources
-
-|Field                |Value                                                                                    |
-|---------------------|-----------------------------------------------------------------------------------------|
-|**Type**             |Processing                                                                               |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
-|**Status**           |🔍 *Fetching {n} source(s)…*                                                              |
-|**Notification Rule**|No output except Progress Header + Status                                                |
-
-For each selected source:
-
-- Fetch the document and extract all entity names, jurisdictions, and any available parent or relationship information.
-- Detect the structure: explicit hierarchy, flat list with parent column, flat list only.
-- If explicit hierarchy or parent column → extract `{ name, parentName }` pairs.
-- If flat list only → set `parentName` = name of the registrant (party GUO or root) with note "assumed direct subsidiary — source provides no hierarchy".
-- If structure is ambiguous (e.g. visual groupings, indented formatting without explicit labels) → treat as flat list. Do not infer hierarchy from visual layout.
-- Tag each entity with `{ source, confidence, filingDate?, assumedParent: true/false }`.
-
-Set `{researchRaw}` — all extracted entities before deduplication.
-
----
-
-### Research Step 3: Merge and Deduplicate
-
-|Field                |Value                                                                                    |
-|---------------------|-----------------------------------------------------------------------------------------|
-|**Type**             |Processing                                                                               |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
-|**Status**           |🔍 *Merging sources…*                                                                     |
-|**Notification Rule**|No output except Progress Header + Status                                                |
-
-Merge `{researchRaw}` into a single deduplicated list:
-
-- Normalize all names (apply client stopwords if available; otherwise strip standard legal suffixes).
-- For each entity, find any existing entry in the merged list with normalized name similarity ≥ 99%.
-- **Match found:** merge sources into a combined `sources` array. If parent info conflicts across sources, retain the higher-confidence source's parent and note the conflict.
-- **No match:** add as new entry.
-- **Short normalized name (≤ 6 characters after stripping):** do not auto-merge — flag for manual review. Short names are high risk for false merges.
-
-Set `{researchMerged}` — deduplicated list with `{ name, parentName, sources[], confidence, assumedParent, notes? }`.
-
----
-
-### Research Step 4: Surface Assumptions and Confirm
-
-|Field                |Value                                                                                    |
-|---------------------|-----------------------------------------------------------------------------------------|
-|**Type**             |Display → User Prompt                                                                    |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
-|**Status**           |🔍 *{n} entities found across {m} source(s). Review assumptions before proceeding.*       |
-|**Notification Rule**|Render summary then assumptions then prompt                                              |
-
-Render summary:
-
-```
-Research Summary
-─────────────────────────────────────────────
-Party:          {partyName}
-Sources fetched: {n}
-Total entities:  {n}
-Corroborated:    {n} (found in 2+ sources)
-Single source:   {n}
-Assumed parent:  {n} (no hierarchy provided by source)
-Flagged (short name, possible false merge): {n}
+```json
+{
+  "entity": "{partyName}",
+  "ultimateOwners": [ "{root.name}" ]
+}
 ```
 
-Render assumptions block (only if any assumedParent = true):
+Where `ultimateOwners` is populated from the roots of `{candidatePool}` (all nodes with `parentId = null` and `source = "Tree"`). If `{candidatePool}` has no tree roots, use `{partyName}` as the sole entry.
 
-```
-Parent Assumptions
-─────────────────────────────────────────────
-The following sources provided flat lists with no hierarchy. All entities from these sources have been assigned the default parent shown.
+Set `{researchResult}` = the skill's full output (`nodes[]`, `additionalRoots[]`, `flagged[]`, `summary`).
 
-SEC EDGAR EX-21.1 (FY2024)
-Default parent: Innospec Inc.
-Entities affected: {n}
-Note: Exhibit 21 lists significant subsidiaries only. Filing date 2025-02-19 — may not reflect current structure.
+If `{researchResult.nodes}` is empty → render:
 
-[additional sources…]
-```
+> *No entities found in public sources for {partyName}.*
 
-Render the research findings as a tree using the `chat-tree-display` skill. Build the nodes payload from `{researchMerged}` as follows.
+Then prompt:
 
-**Temporary ID assignment (for tree construction only, not stored):**
-Assign each entity a temporary `id` = its normalized name. Set `parentId` = the normalized parent name if the parent exists in the node list; `null` if not found or is the assumed root.
+> │ Type **`RESTART`** to return to input method selection
 
-**Node field rules:**
+Otherwise, render the source coverage table.
+
+Rows — one per entity searched:
+- `{partyName} *(party)*`
+- One row per ultimate owner from `{candidatePool}` roots — labelled `*(ultimate parent)*`; if the ultimate owner is the same entity as the party, merge into a single row labelled `*(party / ultimate parent)*`
+- One row per entry in `{researchResult.additionalRoots}` — labelled `*(alternative root)*`; omit these rows entirely if `additionalRoots` is empty
+
+Columns — one per source actually searched this run, using the format `{Source Name} ({Code})`:
+
+| Source | Code |
+|---|---|
+| SEC EDGAR | E |
+| Companies House | C |
+| OpenCorporates | O |
+| Investor Relations | I |
+
+Cells: `✅` if data was found for that entity from that source, `❌` if not.
+
+Then render **Constructed Tree** as a heading, followed by the tree using the `chat-tree-display` skill. Build the nodes payload from `{researchResult.nodes}` as follows:
 
 | Field | Value |
 |---|---|
-| `id` | temporary normalized name (tree construction only) |
-| `name` | entity name from `{researchMerged}` |
-| `parentId` | normalized parent name if parent in list; `null` otherwise |
+| `id` | `node.id` from skill output if it is a real source-provided ID; otherwise `null` |
+| `name` | `node.name` |
+| `parentId` | `node.parentId` |
 | `iconBef` | `null` |
-| `iconAft` | `📋` for all research-sourced entities; `👤` for User Provided only |
-| `iconAftSuffix` | abbreviated source label(s) joined with ` + ` (e.g. `EDGAR + User`, `EDGAR`, `CH`) — append `*` if `assumedParent = true` |
+| `iconAft` | `📋` |
+| `iconAftSuffix` | source code(s) for this node in `({X})` format — comma-separated if multiple (e.g. `(E,C)`) |
 
-**Source abbreviations:**
-
-| Source | Abbreviation |
-|---|---|
-| SEC EDGAR | `EDGAR` |
-| Companies House | `CH` |
-| OpenCorporates | `OC` |
-| IR / Annual Report | `IR` |
-| User Provided | `User` |
-
-Render a legend beneath the tree only if any node has `assumedParent = true`:
-
-> `*` Parent assumed — source provided no hierarchy
-
-Example output:
-
-```
-Innospec Inc. 📋 EDGAR + User
-    Innospec Active Chemicals LLC 📋 EDGAR + User
-    Innospec Fuel Specialties LLC 📋 EDGAR*
-    Innospec Deutschland GmbH 📋 EDGAR*
-    Bachman Services, Inc. 📋 EDGAR + User
-    Independence Oilfield Chemicals, LLC 📋 EDGAR + User
-    BioSuite LLC 📋 EDGAR*
-    Strata Control Services, Inc. 📋 EDGAR*
-    Albemar Holdings 👤 User
-    Sigma Energy Partners LLC 👤 User
-    NewCo Oilfield Services Ltd 👤 User
-    Innospec Fuels LLC 👤 User
-
-* Parent assumed — source provided no hierarchy
-```
-
-Render flagged items (only if any short-name flags):
+Render flagged items (only if `{researchResult.flagged}` is non-empty):
 
 ```
 Manual Review Required
 ─────────────────────────────────────────────
-The following entities could not be safely auto-merged due to short normalized names. Review and confirm whether each is a duplicate or a distinct entity.
+The following entities could not be safely auto-merged due to short normalized names.
+Review and confirm whether each is a duplicate or a distinct entity.
 
-"Innospec Ltd" vs "Innospec Inc." — normalized to "innospec" in both cases
+{for each in flagged: "{name} — {reason}"}
 → Type SAME to merge | DIFFERENT to keep as separate entries
 ```
 
-Resolve any flagged items, then prompt:
+Resolve any flagged items inline before prompting.
+
+Then prompt:
 
 > │ Type **`PROCEED`** to use this as the provided list and begin reconciliation
 >
@@ -372,7 +288,7 @@ Resolve any flagged items, then prompt:
 >
 > │ Type **`RESTART`** to return to input method selection
 
-On **PROCEED** → set `{providedList}` = `{researchMerged}`. Set `{inputMethod}` details for report. **GO TO** Step 2.
+On **PROCEED** → convert `{researchResult.nodes}` into `{providedList}` as follows: for each node, create `{ name: node.name, parentName: name of node.parentId resolved from nodes[], source: node.source }`. Set `{inputMethod}` = `Research` for report. **GO TO** Step 2.
 
 On **EDIT** → allow the analyst to add, remove, or modify entries inline. Re-render summary. Re-prompt.
 
@@ -387,7 +303,7 @@ On **RESTART** → return to Step 0 input method prompt.
 |Field                |Value                                                                                    |
 |---------------------|-----------------------------------------------------------------------------------------|
 |**Type**             |Processing                                                                               |
-|**Progress Header**  |`▣ **Fetch & Parse**  ›  ☐ ID Conflicts  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`☑ **Find Tree**  ›  ▣ **Upload/Research**  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔍 *Parsing provided entity list…*                                                        |
 |**Notification Rule**|No output except Progress Header + Status                                                |
 
@@ -406,7 +322,7 @@ If input came from research, each entry in `{providedList}` carries additional m
 |Field                |Value                                                                                        |
 |---------------------|---------------------------------------------------------------------------------------------|
 |**Type**             |Display → User Prompt                                                                        |
-|**Progress Header**  |`☑ **Fetch & Parse**  ›  ▣ **ID Conflicts**  ›  ☐ Match & Score  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`☑ **Find Tree**  ›  ▣ **Upload/Research**  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔑 *We found {n} ID(s) in your list that exist in the tree with different names.*             |
 |**Notification Rule**|Render conflict table then prompt                                                            |
 
@@ -454,7 +370,7 @@ On user decision:
 |Field                |Value                                                                                        |
 |---------------------|---------------------------------------------------------------------------------------------|
 |**Type**             |Processing                                                                                   |
-|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ▣ **Match & Score**  ›  ☐ Reconcile  ›  ☐ Report`|
+|**Progress Header**  |`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ▣ **Reconcile**  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |⚙️ *Comparing provided information against corporate tree…*                                   |
 |**Notification Rule**|No output except Progress Header + Status                                                    |
 
@@ -474,8 +390,8 @@ On user decision:
 |Field                |Value                                                                                            |
 |---------------------|-------------------------------------------------------------------------------------------------|
 |**Type**             |Display → User Prompt                                                                            |
-|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ▣ **Reconcile**  ›  ☐ Report`|
-|**Status**           |✏️ *We found {n} strong matches to existing names in the corporate tree.*                         |
+|**Progress Header**  |`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ▣ **Reconcile**  ›  ☐ Judgement Calls  ›  ☐ Report`|
+|**Status**           |✏️ *We found {n} strong matches to entities that already exist in the corporate tree.*             |
 |**Notification Rule**|Render match table then prompt                                                                   |
 
 If `{matches}` is empty → **GO TO** Step 6.
@@ -489,15 +405,15 @@ Render:
 
 Then prompt:
 
-> │ Type **`ACCEPT`** to confirm all matches (none will be added to the tree)
+> │ Type **`ACCEPT`** to confirm all matches — *we won't add any of these entities*
 
-> │ Type specific row letters to accept individually *(e.g., `ACCEPT A, D, F`)*
+> │ Type **`ACCEPT A, B, C`** to confirm specific matches — *we won't add these specific entities*
 
-> │ Type **`SKIP`** to reject all matches and add as new entities
+> │ Type **`REJECT`** to reject all matches — *we will add these in the next step*
 
 - **ACCEPT** → record all as Matched in `{outcomes}`. **GO TO** Step 6.
 - **Row letters listed (e.g., "ACCEPT B, F")** → record accepted rows as Matched in `{outcomes}`; move rejected rows into `{noMatches}` using each rejected row's matched existing entity's parent as the resolved `Add Under Parent`. **GO TO** Step 6.
-- **SKIP** → move all rows into `{noMatches}` using each matched existing entity's parent as the resolved `Add Under Parent`. **GO TO** Step 6.
+- **REJECT** → move all rows into `{noMatches}` using each matched existing entity's parent as the resolved `Add Under Parent`. **GO TO** Step 6.
 
 **Exit check:** All rows in `{matches}` have an outcome recorded in `{outcomes}` or have been moved to `{noMatches}`.
 
@@ -508,8 +424,8 @@ Then prompt:
 |Field                |Value                                                                                            |
 |---------------------|-------------------------------------------------------------------------------------------------|
 |**Type**             |Display → User Prompt                                                                            |
-|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ▣ **Reconcile**  ›  ☐ Report`|
-|**Status**           |✏️ *{n} name(s) not found in the corporate tree.*                                                 |
+|**Progress Header**  |`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ▣ **Reconcile**  ›  ☐ Judgement Calls  ›  ☐ Report`|
+|**Status**           |✏️ *We found {n} entities with no clear matches in the existing corporate tree.*                   |
 |**Notification Rule**|Render no-match table then prompt                                                                |
 
 If `{noMatches}` is empty → **GO TO** Step 7.
@@ -528,17 +444,17 @@ Render:
 
 Then prompt:
 
-> │ Type **`ADD ALL`** to add all entities to the tree
+> │ Type **`ADD`** to add all entities to the tree
 
-> │ Type **`SKIP ALL`** to skip all, no changes made
+> │ Type **`ADD A, B, C`** to add specific entities to the tree
 
-> │ Type specific row letters to add individually, skipping the rest *(e.g., `A, C`)*
+> │ Type **`SKIP`** to move on — *we won't add anything to the tree right now*
 
 On decision:
 
-- **ADD ALL** → for each entity, perform immediate parent check (Appendix D), then call `IntappJungle:editTree` (Appendix E) to add the entity to the tree. Record as Created in `{outcomes}`. Batch all entities being added into a single `editTree` call per Appendix E.
-- **SKIP ALL** → record all as `Unresolved` in `{outcomes}`.
-- **Row letters listed** → add those using `IntappJungle:editTree` (Appendix E); record the rest as `Unresolved` in `{outcomes}`.
+- **ADD** → for each entity, perform immediate parent check (Appendix D), then call `IntappJungle:editTree` (Appendix E) to add the entity to the tree. Record as Created in `{outcomes}`. Batch all entities being added into a single `editTree` call per Appendix E.
+- **SKIP** → record all as `Unresolved` in `{outcomes}`.
+- **ADD A, B, C (row letters listed)** → add those using `IntappJungle:editTree` (Appendix E); record the rest as `Unresolved` in `{outcomes}`.
 
 **Exit check:** All rows in `{noMatches}` have an outcome of Created or Unresolved in `{outcomes}`.
 
@@ -549,9 +465,9 @@ On decision:
 |Field                |Value                                                                                            |
 |---------------------|-------------------------------------------------------------------------------------------------|
 |**Type**             |Display → User Prompt                                                                            |
-|**Progress Header**  |`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ▣ **Reconcile**  ›  ☐ Report`|
-|**Status**           |✏️ *Judgement Call {i} of {n}*                                                                    |
-|**Notification Rule**|One prompt card per entity; render next only after current is resolved                           |
+|**Progress Header**  |`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ☑ **Reconcile**  ›  ▣ **Judgement Calls**  ›  ☐ Report`|
+|**Status**           |⚖️ *Judgement Call {i} of {n}*                                                                    |
+|**Notification Rule**|Render Progress Header + Status once before the first card only. Subsequent cards omit the Progress Header and Status entirely — render the card content directly.|
 
 If `{judgements}` is empty → **GO TO** Step COMPLETE.
 
@@ -659,46 +575,34 @@ On **row-level decisions** → apply per-row; any row not listed carries forward
 
 If the entity has no provided parent, or the provided parent is not present in `{outcomes}` at all, skip this check.
 
-For each entity in `{judgements}` not already resolved in Substeps 7A or 7B, render the card header table:
+For each entity in `{judgements}` not already resolved in Substeps 7A or 7B, render the card as follows:
 
-|      |Provided Name       |Best Existing Match                  |Match Score   |
-|------|--------------------|-------------------------------------|--------------|
-|Entity|{providedName}      |{topNameMatch} ({topNameMatchId})    |{entityScore}%|
-|Parent|{providedParentName}|{topParentMatch} ({topParentMatchId})|{parentScore}%|
+**Card heading:**
 
-If no parent was provided, the Parent row shows `—` in Provided Name, `—` in Best Existing Match, and `—` in Match Score.
+> **Judgement Call {i} of {n}: {providedName}**
 
-Then render the curated options for the matching variant below. For each option, render the option label followed immediately by a `chat-tree-display` tree showing the result. Build the nodes payload per **Appendix F**, then render using the `chat-tree-display` skill.
+**Top tree (only if parent was provided):** Render a two-node `chat-tree-display` tree using the shared skeleton structure from Appendix F but with no icon annotations — showing provided parent → provided entity name as context.
 
-For Option A, the parent node always shows the matched entity's actual existing tree parent (`{treeParentId}`, `{treeParentName}`). Show `iconAft` and `iconAftSuffix` (match score against provided parent) on the parent node only if a parent was provided in the input. If no parent was provided, set `iconAft: null` and `iconAftSuffix: null` on the parent node.
+**Section divider** (`---`)
 
-**Moderate name match (entity score < threshold), parent corroborates:**
+**Options:** For each option, render the option label followed immediately by a `chat-tree-display` tree built per Appendix F.
 
-**Option A** — Match Existing Entity (Moderate Match) under Existing Parent (Strong Match)
-**Option B** — Add New Entity under Existing Parent (Strong Match)
+**Section divider** (`---`)
+
+**Prompt:**
 
 > │ Type **`A`**, **`B`** or **`SKIP`**
 
-**Strong name match (entity score ≥ threshold), parent not found or fuzzy:**
+**Option labels by reconciliation note:**
 
-**Option A** — Match Existing Entity (Strong Match) under Existing Parent (keep tree placement)
-**Option B** — Add New Entity under Provided Parent ({parentQuality})
-
-> │ Type **`A`**, **`B`** or **`SKIP`**
-
-**Strong name and parent matches, but relationship doesn't exist in tree:**
-
-**Option A** — Match Existing Entity (Strong Match) under Existing Parent ({existingParentQuality})
-**Option B** — Add New Entity under Provided Parent (Strong Match)
-
-> │ Type **`A`**, **`B`** or **`SKIP`**
-
-**No parent provided, moderate or low entity match:**
-
-**Option A** — Match Existing Entity ({entityQuality}) under Existing Parent (keep tree placement)
-**Option B** — Add New Entity under Existing Tree Root
-
-> │ Type **`A`**, **`B`** or **`SKIP`**
+| Reconciliation note | Option A label | Option B label |
+|---|---|---|
+| Moderate entity match. No parent provided. | **A** — Match to existing entity | **B** — Add as new entity |
+| Moderate entity match. Strong parent match. | **A** — Match to existing entity | **B** — Add as new entity |
+| Moderate entity match. Discrepancy parent match. | **A** — Match to existing entity (different parent) | **B** — Add as new entity under provided parent |
+| Moderate entity match. Low parent match. | **A** — Match to existing entity | **B** — Add as new entity under provided parent |
+| Strong entity match. Discrepancy parent match. | **A** — Match to existing entity (different parent) | **B** — Add as new entity under provided parent |
+| Strong entity match. Low parent match. | **A** — Match to existing entity (low parent match) | **B** — Add as new entity under provided parent |
 
 Any Create or Add decision triggers the immediate parent check from Appendix D. Call `IntappJungle:editTree` (Appendix E) to add the new node to the tree.
 
@@ -713,7 +617,7 @@ Record each outcome in `{outcomes}` before rendering the next card.
 |Field              |Value                                                                                    |
 |-------------------|-----------------------------------------------------------------------------------------|
 |**Type**           |Processing → Display                                                                     |
-|**Progress Header**|`☑ **Fetch & Parse**  ›  ☑ **ID Conflicts**  ›  ☑ **Match & Score**  ›  ☑ **Reconcile**  ›  ▣ **Report**`|
+|**Progress Header**|`☑ **Find Tree**  ›  ☑ **Upload/Research**  ›  ☑ **Reconcile**  ›  ☑ **Judgement Calls**  ›  ▣ **Report**`|
 |**Status**         |📋 *Generating reconciliation report…*                                                    |
 
 Render report header:
@@ -746,16 +650,17 @@ Render entity table:
 
 **Outcome values:** `Matched` / `Created (ID: {x})` / `Unresolved` / `Unresolved — parent not resolved` / `Matched — flagged for rename`
 
-Then render the reconciliation tree using the `chat-tree-display` skill. Build the nodes payload per **Appendix G** — include all Matched and Created entities only. Render the tree.
+Then render the reconciliation tree using the `chat-tree-display` skill. Build the nodes payload from `{providedList}` — include every provided entity regardless of outcome. Node construction:
 
-Then render the unresolved list:
+| Field | Value |
+|---|---|
+| `id` | `resolvedId` from `{outcomes}` if available; otherwise a slug of the provided name |
+| `name` | provided entity name |
+| `parentId` | `resolvedId` of the provided parent (from `{outcomes}`); `null` if no parent provided |
+| `iconAft` | 🟢 for Matched / 🆕 for Created / 🔴 for Unresolved or Unresolved — parent not resolved |
+| `iconAftSuffix` | `Reconciled as Match` / `Added` / `Not Reconciled` |
 
-**Not matched or added:**
-- {providedName} — Unresolved
-- {providedName} — Unresolved (parent not resolved)
-- …
-
-If no unresolved entities, omit this section entirely.
+Roots are entities with no provided parent or whose provided parent is not itself in `{providedList}`.
 
 -----
 
@@ -953,7 +858,7 @@ Adding two new subsidiaries under Innospec Inc. (root `042006515`) on an interna
 
 ## Appendix F: Judgement Call Tree Preview Nodes
 
-Build a two-node payload for each option in a Judgement Call card and render using the `chat-tree-display` skill. Every option shows exactly two nodes: the parent and the entity beneath it.
+Build a shared skeleton of nodes for each Judgement Call card and render a separate annotated view per option using the `chat-tree-display` skill.
 
 **Node schema reminder:**
 ```json
@@ -969,51 +874,197 @@ Build a two-node payload for each option in a Judgement Call card and render usi
 |<60%      |🔴     |`{score}%`     |
 |New entity|🆕     |`Add New Entity`|
 
-### Parent node rules
+---
 
-Option A always uses the matched entity's existing tree parent. Option B always uses the provided parent as the target for a new entity.
+### Step 1 — Collect all matched nodes across all options
 
-| Situation | id | name | iconAft | iconAftSuffix |
-|---|---|---|---|---|
-| Option A — parent was provided in input | `{treeParentId}` | `{treeParentName}` | icon for parentScore | `{parentScore}%` |
-| Option A — no parent provided in input | `{treeParentId}` | `{treeParentName}` | `null` | `null` |
-| Option B — provided parent (add new entity) | `{resolvedParentId}` | `{providedParentName}` | icon for parentScore | `{parentScore}%` |
+For the current judgement call, identify every node that is relevant to any option:
 
-Parent node always has `parentId: null` (it is the root of the preview) and `iconBef: null`.
+- **Option A entity match** — the best existing candidate match for the provided entity name (`{topNameMatchId}`)
+- **Option A direct parent** — the tree parent of that matched entity (`{treeParentId}`)
+- **Option B direct parent** — the best existing candidate match for the provided parent name (`{resolvedParentId}`), if a parent was provided; otherwise the tree root
 
-### Entity node rules
+For each of these nodes, walk up `{candidatePool}` via `parentId` links until `parentId` is null (ultimate owner). Collect every ancestor along the way.
 
-| Situation | id | name | iconAft | iconAftSuffix |
-|---|---|---|---|---|
-| Matched existing | `{topNameMatchId}` | `{topNameMatch}` | icon for entityScore | `{entityScore}%` |
-| Add New Entity | `null` | `{providedName}` | `🆕` | `Add New Entity` |
+The union of all these nodes — matched nodes, their direct parents, and all ancestors up to root — forms the **shared skeleton**.
 
-Entity node always has `parentId` = the parent node's `id` and `iconBef: null`.
+Deduplicate by `id`. Preserve `parentId` links from `{candidatePool}` so the tree renders correctly.
+
+---
+
+### Step 2 — Annotate per option
+
+For each option, start with the shared skeleton and apply icons only to nodes relevant to that option. All other nodes in the skeleton render with `iconAft: null` and `iconAftSuffix: null`.
+
+**Score field reference — use exactly these fields, never substitute one for the other:**
+
+| Option | Scored node | Score field from `corp-tree-compare-score` output |
+|---|---|---|
+| A | `{treeParentId}` (`strongest_entity_match_parent_id`) | `strongest_entity_match_parent_id_score` — similarity of provided parent name against the matched entity's *actual tree parent* |
+| B | `{resolvedParentId}` (`strongest_parent_match_id`) | `strongest_parent_match_score` — similarity of provided parent name against the best pool candidate for that parent |
+
+These two fields measure different comparisons and will often differ. Never use `strongest_parent_match_score` for Option A or `strongest_entity_match_parent_id_score` for Option B.
+
+#### Option A — Match existing entity
+
+| Node | iconAft | iconAftSuffix |
+|---|---|---|
+| `{treeParentId}` (direct parent of matched entity) | icon for `strongest_entity_match_parent_id_score` | `{strongest_entity_match_parent_id_score * 100}%` — only if a parent was provided in input; otherwise `null`/`null` |
+| `{topNameMatchId}` (matched entity) | icon for `strongest_entity_match_score` | `{strongest_entity_match_score * 100}%` |
+| All other skeleton nodes | `null` | `null` |
+
+The new entity is **not** inserted — Option A matches an existing node.
+
+#### Option B — Add new entity
+
+| Node | iconAft | iconAftSuffix |
+|---|---|---|
+| `{resolvedParentId}` (provided parent match) | icon for `strongest_parent_match_score` | `{strongest_parent_match_score * 100}%` |
+| All other skeleton nodes | `null` | `null` |
+
+Insert one additional node for the new entity:
+
+```json
+{ "id": null, "name": "{providedName}", "parentId": "{resolvedParentId}", "iconBef": null, "iconAft": "🆕", "iconAftSuffix": "Add New Entity" }
+```
+
+The existing matched entity (`{topNameMatchId}`) remains in the skeleton unscored — it appears as context showing where the name already exists in the tree.
+
+#### No parent provided
+
+When no parent was provided in the input, both options use the tree root as the placement parent. The root carries no score icon in either option.
+
+---
+
+### Step 3 — Render
+
+Render each option's annotated node list using the `chat-tree-display` skill. The skeleton structure is identical across options; only the icon annotations and the presence/absence of the new entity node differ.
 
 **Skip** — never renders a tree preview.
+
+---
+
+### Worked examples
+
+**Discrepancy parent case** (entity strong, provided parent points to different node than tree parent):
+
+Option A entity match: Specialty Intermediates, Inc. (114410017) → tree parent: Bachman Services, Inc. (007780836) → Innospec Inc. (042006515)
+Option B parent match: Innospec Active Chemicals LLC (093788651) → Innospec Inc. (042006515)
+
+Shared skeleton nodes: Innospec Inc., Innospec Active Chemicals LLC, Bachman Services, Inc., Specialty Intermediates, Inc. (114410017)
+
+Option A — Match Existing Entity (Strong Match) under Existing Parent:
+```
+Innospec Inc. (042006515)
+    Innospec Active Chemicals LLC (093788651)
+    Bachman Services, Inc. (007780836) 🔴 18%
+        Specialty Intermediates, Inc. (114410017) 🟢 100%
+```
+
+Option B — Add New Entity under Provided Parent (Strong Match):
+```
+Innospec Inc. (042006515)
+    Innospec Active Chemicals LLC (093788651) 🟢 100%
+        Specialty Intermediates, Inc. 🆕 Add New Entity
+    Bachman Services, Inc. (007780836)
+        Specialty Intermediates, Inc. (114410017)
+```
+
+---
+
+**Strong entity, low parent match case** (entity strong, provided parent fuzzy — entity's tree parent is the root):
+
+Option A entity match: Teneo Securities LLC (1768) → tree parent: Innospec Inc. (042006515)
+Option B parent match: Albemar Holdings (custom-albemare) → Innospec Inc. (042006515)
+
+Shared skeleton nodes: Innospec Inc., Albemar Holdings, Teneo Securities LLC (1768)
+
+Option A — Match Existing Entity (Strong Match) under Existing Parent (keep tree placement):
+```
+Innospec Inc. (042006515) 🔴 10%
+    Albemar Holdings (custom-albemare)
+    Teneo Securities LLC (1768) 🟢 100%
+```
+
+Option B — Add New Entity under Provided Parent (Low Match):
+```
+Innospec Inc. (042006515)
+    Albemar Holdings (custom-albemare) 🔴 61%
+        Teneo Securities LLC 🆕 Add New Entity
+    Teneo Securities LLC (1768)
+```
+
+---
+
+**Moderate entity, parent corroborates case** (entity moderate, provided parent strong and agrees):
+
+Option A entity match: Vijall, Inc. (153765375) → tree parent: Innospec Active Chemicals LLC (093788651) → Innospec Inc.
+Option B parent match: Innospec Active Chemicals LLC (093788651) → Innospec Inc. (same node)
+
+Shared skeleton nodes: Innospec Inc., Innospec Active Chemicals LLC, Vijall, Inc. (153765375)
+
+Option A — Match Existing Entity (Moderate Match) under Existing Parent (Strong Match):
+```
+Innospec Inc. (042006515)
+    Innospec Active Chemicals LLC (093788651) 🟢 100%
+        Vijall, Inc. (153765375) 🟡 86%
+```
+
+Option B — Add New Entity under Provided Parent (Strong Match):
+```
+Innospec Inc. (042006515)
+    Innospec Active Chemicals LLC (093788651) 🟢 100%
+        Vijal Inc 🆕 Add New Entity
+        Vijall, Inc. (153765375)
+```
+
+---
+
+**No parent provided, moderate entity match case**:
+
+Option A entity match: Innospec Fuel Specialties LLC (073901295) → tree parent: Innospec Inc. (042006515)
+Option B: add new under tree root — Innospec Inc. (042006515)
+
+Shared skeleton nodes: Innospec Inc., Innospec Fuel Specialties LLC (073901295)
+
+Option A — Match Existing Entity (Moderate Match) under Existing Parent (keep tree placement):
+```
+Innospec Inc. (042006515)
+    Innospec Fuel Specialties LLC (073901295) 🟡 72%
+```
+
+Option B — Add New Entity under Existing Tree Root:
+```
+Innospec Inc. (042006515)
+    Innospec Fuel Specialties LLC (073901295)
+    Innospec Fuels LLC 🆕 Add New Entity
+```
 
 -----
 
 ## Appendix G: Report Tree Nodes
 
-Build the nodes payload for the `chat-tree-display` skill from `{outcomes}` to show all Matched and Created entities.
+Build the nodes payload for the `tree-display` skill from `{providedList}` and `{outcomes}`.
 
-**Include:** every entity with outcome Matched or Created.
-
-**Exclude:** Unresolved and Unresolved — parent not resolved.
+**Include:** every entity in `{providedList}`.
 
 ### Node construction per entity
 
 | Field | Value |
 |---|---|
-| `id` | `resolvedId` from `{outcomes}` |
-| `name` | matched or created entity name |
-| `parentId` | resolved ID of provided parent (from `{outcomes}`); `null` if no parent or parent not in outcomes |
-| `iconBef` | `null` |
-| `iconAft` | 🟢 for Matched / 🆕 for Created |
-| `iconAftSuffix` | match score (e.g. `100%`) for Matched / `Add New Entity` for Created |
+| `id` | `resolvedId` from `{outcomes}` if available; otherwise a slug of the provided name (e.g. `slug-gazprom-logistics-inc`) |
+| `name` | provided entity name |
+| `parentId` | `resolvedId` of the provided parent entity (looked up via `{outcomes}`); `null` if no parent provided or parent not in `{providedList}` |
 
-Roots are entities whose provided parent is null or whose parent is not itself in the Matched/Created set — they render at the top level.
+### Outcome icons
+
+| Outcome in `{outcomes}` | iconAft | iconAftSuffix |
+|---|---|---|
+| Matched | 🟢 | `Reconciled as Match` |
+| Created | 🆕 | `Added` |
+| Unresolved / Unresolved — parent not resolved | 🔴 | `Not Reconciled` |
+
+Roots are entities with no provided parent, or whose provided parent is not itself in `{providedList}`.
 
 Pass the full nodes array to the `chat-tree-display` skill and render the result.
 
