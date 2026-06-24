@@ -214,7 +214,7 @@ On user decision:
 |**Type**             |Processing → Display → User Prompt                                                       |
 |**Progress Header**  |`☑ **Find Tree**  ›  ▣ **Upload/Research**  ›  ☐ Reconcile  ›  ☐ Judgement Calls  ›  ☐ Report`|
 |**Status**           |🔍 *Researching public sources for {partyName}…*                                          |
-|**Notification Rule**|No output during research. Render source coverage table, then Constructed Tree heading and tree. No commentary, no notes, no explanatory prose before or after either block.                   |
+|**Notification Rule**|No output during research. Render source coverage table, then Constructed Tree heading and tree. No commentary, no notes, no explanatory prose before or after either block. Render the prompt immediately after the tree — nothing between them.                   |
 
 Invoke the `create-tree-public-research` skill with:
 
