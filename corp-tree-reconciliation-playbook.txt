@@ -488,6 +488,8 @@ Collect all rows from `{judgements}` where `reconciliation_note` is exactly one 
 
 If none → skip to Substep 7B.
 
+**Pre-render assertion:** Count all rows in `{judgements}` whose `reconciliation_note` is exactly one of the qualifying notes for this substep. This count must equal the number of rows about to be rendered in the table below. If they differ, halt with: `⚠️ Exit check failed: 7A table would be incomplete — {n} qualifying rows found in {judgements} but only {m} collected. Rebuild the table before rendering.`
+
 These rows share a common property: we know where the entity would live if matched (existing tree parent) and where it would go if added (root or corroborated parent). The analyst is deciding only on entity identity, not placement.
 
 Render:
@@ -523,7 +525,7 @@ On **SKIP** → record all as Unresolved in `{outcomes}`.
 
 On **REVIEW** → carry all rows forward to the one-by-one loop.
 
-**Exit check:** Count of rows presented in the 7A table equals count of rows in `{judgements}` with a qualifying `reconciliation_note`. If counts differ, halt with: `⚠️ Exit check failed: 7A table incomplete — {n} qualifying rows in judgements but only {m} presented.` All 7A rows either have an outcome recorded in `{outcomes}` or are queued for the one-by-one loop.
+**Exit check:** Count of rows collected and presented in the 7A table equals count of rows in `{judgements}` with a qualifying `reconciliation_note`. Re-derive this count independently from `{signalTable}` — do not rely on memory of what was rendered. If counts differ, halt with: `⚠️ Exit check failed: 7A table incomplete — {n} qualifying rows in judgements but only {m} collected and presented.` All 7A rows either have an outcome recorded in `{outcomes}` or are queued for the one-by-one loop.
 
 -----
 
@@ -541,6 +543,8 @@ Collect all rows from `{judgements}` where `reconciliation_note` is exactly one 
 - `Strong entity match. Low parent match.`
 
 If none → skip to Substep 7C.
+
+**Pre-render assertion:** Count all rows in `{judgements}` whose `reconciliation_note` is exactly one of the qualifying notes for this substep. This count must equal the number of rows about to be rendered in the table below. If they differ, halt with: `⚠️ Exit check failed: 7B table would be incomplete — {n} qualifying rows found in {judgements} but only {m} collected. Rebuild the table before rendering.`
 
 These rows share a common property: the entity identity is confident (≥95%), but where it belongs in the tree is uncertain. The analyst is deciding on placement, not identity.
 
@@ -573,7 +577,7 @@ On **REVIEW** → carry all rows forward to the one-by-one loop.
 
 On **row-level decisions** → apply per-row; any row not listed carries forward to the one-by-one loop.
 
-**Exit check:** Count of rows presented in the 7B table equals count of rows in `{judgements}` with a qualifying `reconciliation_note`. If counts differ, halt with: `⚠️ Exit check failed: 7B table incomplete — {n} qualifying rows in judgements but only {m} presented.` All 7B rows either have an outcome recorded in `{outcomes}` or are queued for the one-by-one loop.
+**Exit check:** Count of rows collected and presented in the 7B table equals count of rows in `{judgements}` with a qualifying `reconciliation_note`. Re-derive this count independently from `{signalTable}` — do not rely on memory of what was rendered. If counts differ, halt with: `⚠️ Exit check failed: 7B table incomplete — {n} qualifying rows in judgements but only {m} collected and presented.` All 7B rows either have an outcome recorded in `{outcomes}` or are queued for the one-by-one loop.
 
 -----
 
@@ -591,6 +595,8 @@ Collect all rows from `{judgements}` where `reconciliation_note` is exactly one 
 - `Moderate entity match. Low parent match.`
 
 If none → skip to one-by-one loop.
+
+**Pre-render assertion:** Count all rows in `{judgements}` whose `reconciliation_note` is exactly one of the qualifying notes for this substep. This count must equal the number of rows about to be rendered in the table below. If they differ, halt with: `⚠️ Exit check failed: 7C table would be incomplete — {n} qualifying rows found in {judgements} but only {m} collected. Rebuild the table before rendering.`
 
 These rows are uncertain on both dimensions: the entity match is not conclusive (60–94%) and the provided parent does not agree with or is not found in the existing tree. Both entity identity and placement require analyst judgement.
 
@@ -623,7 +629,7 @@ On **REVIEW** → carry all rows forward to the one-by-one loop.
 
 On **row-level decisions** → apply per-row; any row not listed carries forward to the one-by-one loop.
 
-**Exit check:** Count of rows presented in the 7C table equals count of rows in `{judgements}` with a qualifying `reconciliation_note`. If counts differ, halt with: `⚠️ Exit check failed: 7C table incomplete — {n} qualifying rows in judgements but only {m} presented.` All 7C rows either have an outcome recorded in `{outcomes}` or are queued for the one-by-one loop.
+**Exit check:** Count of rows collected and presented in the 7C table equals count of rows in `{judgements}` with a qualifying `reconciliation_note`. Re-derive this count independently from `{signalTable}` — do not rely on memory of what was rendered. If counts differ, halt with: `⚠️ Exit check failed: 7C table incomplete — {n} qualifying rows in judgements but only {m} collected and presented.` All 7C rows either have an outcome recorded in `{outcomes}` or are queued for the one-by-one loop.
 
 -----
 
